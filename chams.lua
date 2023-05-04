@@ -1,6 +1,6 @@
 --[[
     Created by: Good.Evening#3081
-    Source: https://github.com/GoodEveningFellOff/gamesense-chams/blob/main/chams.lua
+    Source: https://raw.githubusercontent.com/GoodEveningFellOff/gamesense-chams/main/chams.lua
 ]]
 
 local ffi = require("ffi");
