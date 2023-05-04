@@ -1,3 +1,8 @@
+--[[
+    Created by: Good.Evening#3081
+    Source: https://github.com/GoodEveningFellOff/gamesense-chams/blob/main/chams.lua
+]]
+
 local ffi = require("ffi");
 local bit = require("bit");
 ffi.cdef([[
