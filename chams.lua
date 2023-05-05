@@ -383,6 +383,8 @@ local function SetModelOverrideSettings(cfg, alpha_mod, results, info, bones, fl
 end
 
 client.delay_call(1, function()
+    reload_materials()
+
     IStudioRender.__draw_model = IStudioRender.__hook.hook("void (__thiscall*)(void*, void*, const DrawModelInfo_t&, void*, float*, float*, void*, const int32_t)", function(this, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
         local mdl = ffi.string(info.studio_hdr.name)
         local entindex = -1;
