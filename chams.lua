@@ -124,7 +124,7 @@ local config = {
     __scoped_transparency = ui.new_slider("VISUALS", "Colored models", "Transparency In Scope", 0, 100, 0, true, "%", 1, {[0] = "Off";[100] = "Full"});
     scoped_transparency = 1;
 
-    reload_materials = ui.new_button("VISUALS", "Colored models", "Reload Textures", function()
+    reload_materials = ui.new_button("VISUALS", "Colored models", "Reload Materials", function()
         reload_materials()
     end);
     
