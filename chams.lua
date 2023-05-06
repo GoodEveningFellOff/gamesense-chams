@@ -44,34 +44,38 @@ local MaterialIndexing = {
     };
 };
 
-local function CreateConfigGroup(name, file_extention)
-    local n = "[" .. name .. "] ";
+local Grenades = {
+    ["CFlashbang"] = true;
+    ["CHEGrenade"] = true;
+    ["CDecoyGrenade"] = true;
+    ["CSmokeGrenade"] = true;
+    ["CMolotovGrenade"] = true;
+    ["CIncendiaryGrenade"] = true;
+};
 
+local function CreateConfigGroup(n)
     local tbl = {
-        main_option = ui.new_combobox("VISUALS", "Colored models", n .. "Base", {"Off", "Invisible", "Material", "Color", "Flat"});
-        main_color = ui.new_color_picker("VISUALS", "Colored models", n .. "Base Color", 255, 255, 255, 255);
-        main_pearlescense = ui.new_slider("VISUALS", "Colored models", n .. "Pearlescense", -100, 100, 0, true, "%", 1, {[0] = "Off"});
-        main_rimglow = ui.new_slider("VISUALS", "Colored models", n .. "Rimglow", 0, 100, 0, true, "%", 1, {[0] = "Off"});
-        main_reflectivity = ui.new_slider("VISUALS", "Colored models", n .. "Reflectivity", 0, 100, 0, true, "%", 1, {[0] = "Off"});
+        main_option = ui.new_combobox("VISUALS", "Colored models", "\aC8FF37FFBase\n" .. n, {"Off", "Invisible", "Material", "Color", "Flat"});
+        main_color = ui.new_color_picker("VISUALS", "Colored models", "Base Color" .. n, 255, 255, 255, 255);
+        main_pearlescense = ui.new_slider("VISUALS", "Colored models", "Pearlescense\n" .. n, -100, 100, 0, true, "%", 1, {[0] = "Off"});
+        main_rimglow = ui.new_slider("VISUALS", "Colored models", "Rimglow\n" .. n, 0, 100, 0, true, "%", 1, {[0] = "Off"});
+        main_reflectivity = ui.new_slider("VISUALS", "Colored models", "Reflectivity\n" .. n, 0, 100, 0, true, "%", 1, {[0] = "Off"});
+        main_reflectivity_color = ui.new_color_picker("VISUALS", "Colored models", "Reflectivity Color" .. n, 255, 255, 255, 255);
 
-        spacer_1 = ui.new_label("VISUALS", "Colored models", " ");
+        animated_option = ui.new_combobox("VISUALS", "Colored models", "\aC8FF37FFAnimated\n" .. n, {"Disabled", "Tazer Beam", "Hemisphere Height", "Zone Warning", "Bendybeam", "Dreamhack"});
+        animated_color = ui.new_color_picker("VISUALS", "Colored models", "Animated Color" .. n, 255, 255, 255, 255);
 
-        animated_option = ui.new_combobox("VISUALS", "Colored models", n .. "Animated", {"Disabled", "Tazer Beam", "Hemisphere Height", "Zone Warning", "Bendybeam", "Dreamhack"});
-        animated_color = ui.new_color_picker("VISUALS", "Colored models", n .. "Animated Color", 255, 255, 255, 255);
+        glow_fill = ui.new_slider("VISUALS", "Colored models", "\aC8FF37FFGlow\n" .. n, 0, 100, 0, true, "%", 1, {[0] = "Off"});
+        glow_color = ui.new_color_picker("VISUALS", "Colored models", "Glow Color" .. n, 255, 255, 255, 255);
 
-        spacer_2 = ui.new_label("VISUALS", "Colored models", " ");
-
-        glow_fill = ui.new_slider("VISUALS", "Colored models", n .. "Glow Fill", 0, 100, 0, true, "%", 1, {[0] = "Off"});
-        glow_color = ui.new_color_picker("VISUALS", "Colored models", n .. "Glow Color", 255, 255, 255, 255);
-
-        __wireframe = ui.new_multiselect("VISUALS", "Colored models", n .. "Wireframe", { "Main", "Animated", "Glow" });
+        __wireframe = ui.new_multiselect("VISUALS", "Colored models", "Wireframe\n" .. n, { "Main", "Animated", "Glow" });
         wireframe = {false, false, false};
 
-        main_material = {[0] = nil; [1] = nil; [2] = nil;};
-        pmain_material = {[0] = nil; [1] = nil; [2] = nil;};
+        main_material = {[0] = nil; nil, nil};
+        pmain_material = {[0] = nil; nil, nil};
 
-        animated_material = {[0] = nil; [1] = nil; [2] = nil; [3] = nil; [4] = nil;};
-        panimated_material = {[0] = nil; [1] = nil; [2] = nil; [3] = nil; [4] = nil;};
+        animated_material = {[0] = nil; nil, nil, nil, nil};
+        panimated_material = {[0] = nil; nil, nil, nil, nil};
 
         glow_material =  nil;
         pglow_material = nil;
@@ -82,19 +86,16 @@ local function CreateConfigGroup(name, file_extention)
             ui.set_visible(self.main_pearlescense, visible)
             ui.set_visible(self.main_rimglow, visible)
             ui.set_visible(self.main_reflectivity, visible)
-            ui.set_visible(self.spacer_1, visible)
+            ui.set_visible(self.main_reflectivity_color, visible)
             ui.set_visible(self.animated_option, visible)
             ui.set_visible(self.animated_color, visible)
-            ui.set_visible(self.spacer_2, visible)
             ui.set_visible(self.glow_fill, visible)
             ui.set_visible(self.glow_color, visible)
             ui.set_visible(self.__wireframe, visible)
         end;
     };
 
-    if name ~= "wp" then
-        tbl:set_visible(false)
-    end
+    tbl:set_visible(false)
 
     ui.set_callback(tbl.__wireframe, function()
         local wf = {false, false, false};
@@ -112,23 +113,16 @@ end
 local reload_materials = function() end;
 
 local config = {
-    [0] = ui.new_label("VISUALS", "Colored models", "====== [ Better Chams ] =====");
-    selection = ui.new_combobox("VISUALS", "Colored models", "Group", { "Weapon", "Arms", "Sleeves", "Facemask", "Player" });
+    selection = ui.new_combobox("VISUALS", "Colored models", "\nGroup", { "Hide", "Weapon", "Arms", "Sleeves", "Facemask", "Player" });
 
-    weapon = CreateConfigGroup("wp", "wpn");
-    arms = CreateConfigGroup("ar", "arm");
-    sleeves = CreateConfigGroup("sl", "slv");
-    facemask = CreateConfigGroup("ms", "msk");
-    player = CreateConfigGroup("pl", "arm");
+    weapon = CreateConfigGroup("wp");
+    arms = CreateConfigGroup("ar");
+    sleeves = CreateConfigGroup("sl");
+    facemask = CreateConfigGroup("ms");
+    player = CreateConfigGroup("pl");
 
-    __scoped_transparency = ui.new_slider("VISUALS", "Colored models", "Transparency In Scope", 0, 100, 0, true, "%", 1, {[0] = "Off";[100] = "Full"});
-    scoped_transparency = 1;
-
-    reload_materials = ui.new_button("VISUALS", "Colored models", "Reload Materials", function()
-        reload_materials()
-    end);
-    
-    [1] = ui.new_label("VISUALS", "Colored models", "====== [ Better Chams ] ======");
+    __transparency = ui.new_slider("VISUALS", "Colored models", "Scoped/Grenade Transparency", 0, 100, 0, true, "%", 1, {[0] = "Off";[100] = "Full"});
+    transparency = 1;
 };
 
 local menu_references = {
@@ -136,12 +130,8 @@ local menu_references = {
     local_player_transparency = ui.reference("VISUALS", "Colored models", "Local player transparency");
     fake = ui.reference("VISUALS", "Colored models", "Local player fake");
     hands = ui.reference("VISUALS", "Colored models", "Hands");
-    weapon_viewmodel = nil;
-    weapon_viewmodel_color = nil;
-    weapon_viewmodel_type = nil;
+    weapon_viewmodel = ui.reference("VISUALS", "Colored models", "Weapon viewmodel");
 };
-
-menu_references.weapon_viewmodel, menu_references.weapon_viewmodel_color, menu_references.weapon_viewmodel_type = ui.reference("VISUALS", "Colored models", "Weapon viewmodel");
 
 local interfaces = {
     material_system = ffi.cast("void***", client.create_interface("materialsystem.dll", "VMaterialSystem080"));
@@ -247,6 +237,8 @@ local IStudioRender = {
     __draw_model = nil;
     __forced_material_override = ffi.cast("void (__thiscall*)(void*, void*, const int32_t, const int32_t)", interfaces.studio_render[0][33]);
 
+    draw_model_context = {[0] = nil; nil, nil, nil, nil, nil, nil, nil};
+
     set_color_modulation = function(self, r, g, b)
         self.__set_color_modulation(interfaces.studio_render, ffi.new("float [3]", r, g, b))
     end;
@@ -255,15 +247,15 @@ local IStudioRender = {
         self.__set_alpha_modulation(interfaces.studio_render, alpha)
     end;
 
-    draw_model = function(self, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
-        self.__draw_model(interfaces.studio_render, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
+    draw_model = function(self)
+        local ctx = self.draw_model_context;
+        self.__draw_model(interfaces.studio_render, ctx[0], ctx[1], ctx[2], ctx[3], ctx[4], ctx[5], ctx[6], ctx[7])
     end;
 
     forced_material_override = function(self, mat)
         self.__forced_material_override(interfaces.studio_render, mat, 0, -1)
     end;
 };
-
 
 local IClientRenderable = {
     __GetClientUnknown = nil;
@@ -275,75 +267,35 @@ local IClientRenderable = {
     end;
 };
 
-local scoped_transparency = 1;
+local in_thirdperson = false;
+local transparency = 1;
 local local_player_index = -1;
 local local_weapons = {};
+local local_pos = {0, 0, 0};
+local last_update_curtime = 0;
 local ENT_ENTRY_MASK = bit.lshift(1, 12) - 1; --> entity_handle & ENT_ENTRY_MASK = entity_index <
 
-client.set_event_callback("setup_command", function()
-    ui.set(menu_references.local_player, false)
-    ui.set(menu_references.local_player_transparency, "");
-    ui.set(menu_references.fake, false)
-    ui.set(menu_references.hands, false)
-    ui.set(menu_references.weapon_viewmodel, true)
-    ui.set(menu_references.weapon_viewmodel_color, 255, 255, 255, math.floor(255*scoped_transparency))
-    ui.set(menu_references.weapon_viewmodel_type, "Original")
-
-    local_player_index = entity.get_local_player() or -1;
-
-    if local_player_index == -1 then return end
-
-    scoped_transparency = (entity.get_prop(local_player_index, "m_bIsScoped") == 1) and config.scoped_transparency or 1;
-
-    local_weapons = {};
-    for _, entindex in pairs(entity.get_all("CBaseWeaponWorldModel")) do
-        local_weapons[entindex] = bit.band(entity.get_prop(entindex, "moveparent"), ENT_ENTRY_MASK) == local_player_index;
-    end
-end)
-
-local function HideUiElements(visible)
-    ui.set_visible(menu_references.local_player, visible)
-    ui.set_visible(menu_references.local_player_transparency, visible)
-    ui.set_visible(menu_references.fake, visible)
-    ui.set_visible(menu_references.hands, visible)
-    ui.set_visible(menu_references.weapon_viewmodel, visible)
-    ui.set_visible(menu_references.weapon_viewmodel_color, visible)
-    ui.set_visible(menu_references.weapon_viewmodel_type, visible)
-end
-
-client.set_event_callback("shutdown", function()
-    IStudioRender.__hook.unhook()
-    HideUiElements(true)
-end)
-
-HideUiElements(false)
-
-local function SetModelOverrideSettings(cfg, alpha_mod, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
+local function update_material_group(cfg)
     local get, floor = ui.get, math.floor;
 
     local main_option = MaterialIndexing.base[get(cfg.main_option)];
     if main_option ~= 1 then
-        if main_option < 3 then
-            IStudioRender:set_color_modulation(1, 1, 1)
-            IStudioRender:set_alpha_modulation(alpha_mod * 1)
-            IStudioRender:draw_model(results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
-        end
-
         if main_option > 1 then
             local mat = cfg.main_material[main_option - 2];
             local r, g, b, a = get(cfg.main_color);
+            local rr, rg, rb, _ = get(cfg.main_reflectivity_color);
 
             mat:set_shader_param("$pearlescentinput", get(cfg.main_pearlescense))
             mat:set_shader_param("$rimlightinput", get(cfg.main_rimglow))
-            mat:set_shader_param("$phonginput", get(cfg.main_reflectivity) / 2)
+            mat:set_shader_param("$phongr", rr)
+            mat:set_shader_param("$phongg", rg)
+            mat:set_shader_param("$phongb", rb)
+            mat:set_shader_param("$phonga", ra * get(cfg.main_reflectivity) * 0.01)
 
             mat:set_material_var_flag(28, cfg.wireframe[1])
 
             mat:color_modulate(r, g, b)
-            mat:alpha_modulate(floor(a*alpha_mod))
-
-            IStudioRender:forced_material_override(cfg.pmain_material[main_option - 2])
-            IStudioRender:draw_model(results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
+            mat:alpha_modulate(floor(a * transparency))
         end
     end
     
@@ -355,10 +307,7 @@ local function SetModelOverrideSettings(cfg, alpha_mod, results, info, bones, fl
         mat:set_material_var_flag(28, cfg.wireframe[2])
 
         mat:color_modulate(r, g, b)
-        mat:alpha_modulate(floor(a*alpha_mod))
-
-        IStudioRender:forced_material_override(cfg.panimated_material[animated_option - 1])
-        IStudioRender:draw_model(results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
+        mat:alpha_modulate(floor(a * transparency))
     end
 
     local glow_fill = get(cfg.glow_fill);
@@ -375,19 +324,136 @@ local function SetModelOverrideSettings(cfg, alpha_mod, results, info, bones, fl
         mat:set_material_var_flag(28, cfg.wireframe[3])
 
         mat:color_modulate(255, 255, 255)
-        mat:alpha_modulate(floor(a*alpha_mod))
+        mat:alpha_modulate(floor(a * transparency))
+    end
+end;
 
+client.set_event_callback("setup_command", function()
+    ui.set(menu_references.local_player, false)
+    ui.set(menu_references.local_player_transparency, "");
+    ui.set(menu_references.fake, false)
+    ui.set(menu_references.hands, false)
+    ui.set(menu_references.weapon_viewmodel, false)
+
+    local_player_index = entity.get_local_player() or -1;
+
+    if local_player_index == -1 then return end
+
+    local weapon = entity.get_player_weapon(local_player_index);
+
+    if not weapon then return end
+
+    local_pos = {entity.hitbox_position(local_player_index, 2)};
+
+    transparency = (in_thirdperson and (entity.get_prop(local_player_index, "m_bIsScoped") == 1 or Grenades[entity.get_classname(weapon)])) and config.transparency or 1;
+
+    local_weapons = {};
+    for _, entindex in pairs(entity.get_all("CBaseWeaponWorldModel")) do
+        local_weapons[entindex] = bit.band(entity.get_prop(entindex, "moveparent"), ENT_ENTRY_MASK) == local_player_index;
+    end
+end)
+
+client.set_event_callback("paint", function()
+    if math.abs(globals.curtime() - last_update_curtime) < 0.016 then return end
+    last_update_curtime = globals.curtime();
+
+    local status, err = pcall(update_material_group, config.weapon)
+    if not status then
+        print("[7] Error Detected Reloading Materials, Error Below.")
+        print(err)
+        reload_materials()
+    end
+
+    if in_thirdperson then
+        local status, err = pcall(update_material_group, config.facemask)
+        if not status then
+            print("[8] Error Detected Reloading Materials, Error Below.")
+            print(err)
+            reload_materials()
+        end
+
+        local status, err = pcall(update_material_group, config.player)
+        if not status then
+            print("[9] Error Detected Reloading Materials, Error Below.")
+            print(err)
+            reload_materials()
+        end
+
+        return
+    end
+
+    local status, err = pcall(update_material_group, config.arms)
+    if not status then
+        print("[10] Error Detected Reloading Materials, Error Below.")
+        print(err)
+        reload_materials()
+    end
+
+    local status, err = pcall(update_material_group, config.sleeves)
+    if not status then
+        print("[11] Error Detected Reloading Materials, Error Below.")
+        print(err)
+        reload_materials()
+    end
+end)
+
+local function HideUiElements(visible)
+    ui.set_visible(menu_references.local_player, visible)
+    ui.set_visible(menu_references.local_player_transparency, visible)
+    ui.set_visible(menu_references.fake, visible)
+    ui.set_visible(menu_references.hands, visible)
+    ui.set_visible(menu_references.weapon_viewmodel, visible)
+end
+
+client.set_event_callback("shutdown", function()
+    IStudioRender.__hook.unhook()
+    HideUiElements(true)
+end)
+
+HideUiElements(false)
+
+local function SetModelOverrideSettings(cfg)
+    local get = ui.get;
+
+    local main_option = MaterialIndexing.base[get(cfg.main_option)];
+    if main_option ~= 1 then
+        if main_option < 3 then
+            IStudioRender:set_color_modulation(1, 1, 1)
+            IStudioRender:set_alpha_modulation(transparency)
+            IStudioRender:draw_model()
+        end
+
+        if main_option > 1 then
+            IStudioRender:forced_material_override(cfg.pmain_material[main_option - 2])
+            IStudioRender:draw_model()
+        end
+    end
+    
+    local animated_option = MaterialIndexing.animated[get(cfg.animated_option)];
+    if animated_option > 0 then
+        IStudioRender:forced_material_override(cfg.panimated_material[animated_option - 1])
+        IStudioRender:draw_model()
+    end
+
+    local glow_fill = get(cfg.glow_fill);
+    if glow_fill > 0 then
         IStudioRender:forced_material_override(cfg.pglow_material)
-        IStudioRender:draw_model(results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
+        IStudioRender:draw_model()
     end
 end
+
+local function get_dist(vec)
+    return math.sqrt((local_pos[1] - vec[0])^2 + (local_pos[2] - vec[1])^2 + (local_pos[3] - vec[2])^2)
+end;
 
 client.delay_call(1, function()
     reload_materials()
 
-    IStudioRender.__draw_model = IStudioRender.__hook.hook("void (__thiscall*)(void*, void*, const DrawModelInfo_t&, void*, float*, float*, void*, const int32_t)", function(this, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
+    IStudioRender.__draw_model = IStudioRender.__hook.hook("void (__fastcall*)(void*, void*, void*, const DrawModelInfo_t&, void*, float*, float*, float[3], const int32_t)", function(this, ecx, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
         local mdl = ffi.string(info.studio_hdr.name)
         local entindex = -1;
+
+        IStudioRender.draw_model_context = {[0] = ecx; results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags};
 
         pcall(function()
             if info.renderable ~= ffi.NULL then
@@ -406,42 +472,96 @@ client.delay_call(1, function()
             end
         end)
 
-        if mdl:find("weapons.v_") then
-            if not mdl:find("weapons.v_models") then 
-                pcall(SetModelOverrideSettings, config.weapon, 1, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
-                return
+        if mdl:find("weapons.._") then
+            if mdl:find("/arms/glove") then
+                in_thirdperson = false;
+    
+                local status, err = pcall(SetModelOverrideSettings, config.arms);
+                if not status then
+                    print("[1] Error Detected Reloading Materials, Error Below.")
+                    print(err)
+                    reload_materials()
+                end
 
-            elseif mdl:find("/arms/glove") then
-                pcall(SetModelOverrideSettings, config.arms, 1, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
                 return
+    
+            elseif in_thirdperson then
+                local is_inhand_item = local_weapons[entindex];
+                if is_inhand_item or entindex == -1 then
+                    if is_inhand_item or get_dist(model_origin) <= 30 then
+                        local status, err = pcall(SetModelOverrideSettings, config.weapon)
+                        if not status then
+                            print("[2] Error Detected Reloading Materials, Error Below.")
+                            print(err)
+                            reload_materials()
+                        end
 
-            else
-                pcall(SetModelOverrideSettings, config.sleeves, 1, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
-                return
+                        return
+    
+                    end
+                end
+    
+            elseif mdl:find("v") == 9 then
+                if mdl:find("\\") then
+                    local status, err = pcall(SetModelOverrideSettings, config.weapon)
+                    if not status then
+                        print("[3] Error Detected Reloading Materials, Error Below.")
+                        print(err)
+                        reload_materials()
+                    end
 
+                    return
+    
+                else
+                    local status, err = pcall(SetModelOverrideSettings, config.sleeves)
+                    if not status then
+                        print("[4] Error Detected Reloading Materials, Error Below.")
+                        print(err)
+                        reload_materials()
+                    end
+
+                    return
+    
+                end
             end
-        elseif mdl:find("facemask") then
-            pcall(SetModelOverrideSettings, config.facemask, (scoped_transparency > 0) and (scoped_transparency * 0.3 + 0.7) or 0, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
+    
+            IStudioRender:draw_model()
+            return
+        end
+    
+        if in_thirdperson and mdl:find("facemask") then
+            local status, err = pcall(SetModelOverrideSettings, config.facemask)
+            if not status then
+                print("[5] Error Detected Reloading Materials, Error Below.")
+                print(err)
+                reload_materials()
+            end
+
             return
 
         end
-        
+
         if entindex == -1 then
-            IStudioRender:draw_model(results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
+            
+    
+            IStudioRender:draw_model()
             return
-        end
-
-        if local_weapons[entindex] then
-            pcall(SetModelOverrideSettings, config.weapon, scoped_transparency, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
-            return
-        
+    
         elseif entindex == local_player_index then
-            pcall(SetModelOverrideSettings, config.player, scoped_transparency, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
-            return
+            in_thirdperson = true;
+    
+            local status, err = pcall(SetModelOverrideSettings, config.player)
+            if not status then
+                print("[6] Error Detected Reloading Materials, Error Below.")
+                print(err)
+                reload_materials()
+            end
 
+            return
+    
         end
-        
-        IStudioRender:draw_model(results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
+    
+        IStudioRender:draw_model()
     end, 29)
 end)
 
@@ -450,7 +570,7 @@ reload_materials = function()
         ["weapon"] = "wpn";
         ["arms"] = "arm";
         ["sleeves"] = "slv";
-        ["facemask"] = "msk";
+        ["facemask"] = "slv";
         ["player"] = "arm";
     }) do
         local tbl = config[config_group];
@@ -487,12 +607,10 @@ ui.set_callback(config.selection, function()
     config.player:set_visible(value == "Player")
 end)
 
-ui.set_callback(config.__scoped_transparency, function()
-    config.scoped_transparency = (100 - ui.get(config.__scoped_transparency)) / 100;
+ui.set_callback(config.__transparency, function()
+    config.transparency = (100 - ui.get(config.__transparency)) / 100;
 end)
 
-config.scoped_transparency = (100 - ui.get(config.__scoped_transparency))  / 100;
+config.transparency = (100 - ui.get(config.__transparency))  / 100;
 
-ui.set(config.selection, "Weapon")
-
-reload_materials()
+ui.set(config.selection, "Hide")
