@@ -51,7 +51,7 @@ local Weapons = {
     ["CSmokeGrenade"] = 1;
     ["CMolotovGrenade"] = 1;
     ["CIncendiaryGrenade"] = 1;
-    ["CWeaponSG556"] = 2;
+    ["CWeaponSG553"] = 2;
     ["CWeaponAug"] = 2;
 };
 
@@ -280,58 +280,64 @@ local ENT_ENTRY_MASK = bit.lshift(1, 12) - 1; --> entity_handle & ENT_ENTRY_MASK
 
 local function update_material_group(cfg)
     local get, floor = ui.get, math.floor;
+    
+    local status, err = pcall(function()
+        local main_option = MaterialIndexing.base[get(cfg.main_option)];
+        if main_option ~= 1 then
+            if main_option > 1 then
+                local mat = cfg.main_material[main_option - 2];
+                local r, g, b, a = get(cfg.main_color);
+                local rr, rg, rb, _ = get(cfg.main_reflectivity_color);
 
-    local main_option = MaterialIndexing.base[get(cfg.main_option)];
-    if main_option ~= 1 then
-        if main_option > 1 then
-            local mat = cfg.main_material[main_option - 2];
-            local r, g, b, a = get(cfg.main_color);
-            local rr, rg, rb, _ = get(cfg.main_reflectivity_color);
+                mat:set_shader_param("$pearlescentinput", get(cfg.main_pearlescense))
+                mat:set_shader_param("$rimlightinput", get(cfg.main_rimglow))
+                mat:set_shader_param("$phongr", rr)
+                mat:set_shader_param("$phongg", rg)
+                mat:set_shader_param("$phongb", rb)
+                mat:set_shader_param("$phonga", ra * get(cfg.main_reflectivity) * 0.01)
 
-            mat:set_shader_param("$pearlescentinput", get(cfg.main_pearlescense))
-            mat:set_shader_param("$rimlightinput", get(cfg.main_rimglow))
-            mat:set_shader_param("$phongr", rr)
-            mat:set_shader_param("$phongg", rg)
-            mat:set_shader_param("$phongb", rb)
-            mat:set_shader_param("$phonga", ra * get(cfg.main_reflectivity) * 0.01)
+                mat:set_material_var_flag(28, cfg.wireframe[1])
 
-            mat:set_material_var_flag(28, cfg.wireframe[1])
+                mat:color_modulate(r, g, b)
+                mat:alpha_modulate(floor(a * transparency))
+            end
+        end
+        
+        local animated_option = MaterialIndexing.animated[get(cfg.animated_option)];
+        if animated_option > 0 then
+            local mat = cfg.animated_material[animated_option - 1]
+            local r, g, b, a = get(cfg.animated_color);
+
+            mat:set_material_var_flag(28, cfg.wireframe[2])
 
             mat:color_modulate(r, g, b)
             mat:alpha_modulate(floor(a * transparency))
         end
-    end
-    
-    local animated_option = MaterialIndexing.animated[get(cfg.animated_option)];
-    if animated_option > 0 then
-        local mat = cfg.animated_material[animated_option - 1]
-        local r, g, b, a = get(cfg.animated_color);
 
-        mat:set_material_var_flag(28, cfg.wireframe[2])
+        local glow_fill = get(cfg.glow_fill);
+        if glow_fill > 0 then
+            local mat = cfg.glow_material;
+            local r, g, b, a = get(cfg.glow_color);
 
-        mat:color_modulate(r, g, b)
-        mat:alpha_modulate(floor(a * transparency))
-    end
+            mat:set_shader_param("$envmaptintr", r)
+            mat:set_shader_param("$envmaptintg", g)
+            mat:set_shader_param("$envmaptintb", b)
+            mat:set_shader_param("$envmapfresnelfill", 100 - glow_fill)
+            mat:set_shader_param("$envmapfresnelbrightness", a / 2.55)
 
-    local glow_fill = get(cfg.glow_fill);
-    if glow_fill > 0 then
-        local mat = cfg.glow_material;
-        local r, g, b, a = get(cfg.glow_color);
+            mat:set_material_var_flag(28, cfg.wireframe[3])
 
-        mat:set_shader_param("$envmaptintr", r)
-        mat:set_shader_param("$envmaptintg", g)
-        mat:set_shader_param("$envmaptintb", b)
-        mat:set_shader_param("$envmapfresnelfill", 100 - glow_fill)
-        mat:set_shader_param("$envmapfresnelbrightness", a / 2.55)
+            mat:color_modulate(255, 255, 255)
+            mat:alpha_modulate(floor(a * transparency))
+        end
+    end)
 
-        mat:set_material_var_flag(28, cfg.wireframe[3])
-
-        mat:color_modulate(255, 255, 255)
-        mat:alpha_modulate(floor(a * transparency))
+    if not status then
+        reload_materials()
     end
 end;
 
-client.set_event_callback("setup_command", function()
+client.set_event_callback("net_update_end", function()
     ui.set(menu_references.local_player, false)
     ui.set(menu_references.local_player_transparency, "");
     ui.set(menu_references.fake, false)
@@ -340,7 +346,43 @@ client.set_event_callback("setup_command", function()
 
     local_player_index = entity.get_local_player() or -1;
 
-    if local_player_index == -1 then return end
+    if local_player_index == -1 then
+        transparency = 1;
+        local_weapons = {};
+        disable_weapon_chams = false; 
+
+        return 
+    end
+
+    if not entity.is_alive(local_player_index) then
+        transparency = 1;
+        local_weapons = {};
+
+        local status, err = pcall(function()
+            local spectated_player_index = bit.band(entity.get_prop(local_player_index, "m_hObserverTarget"), ENT_ENTRY_MASK) or -1;
+            if spectated_player_index == -1 then 
+                disable_weapon_chams = false;
+
+                return 
+            end
+
+            local weapon = entity.get_player_weapon(spectated_player_index);
+
+            if not weapon then 
+                disable_weapon_chams = false;
+
+                return 
+            end
+
+            disable_weapon_chams = not in_thirdperson and (Weapons[entity.get_classname(weapon)] or 0) == 2 and entity.get_prop(spectated_player_index, "m_bIsScoped") == 1;
+        end)
+        
+        if not status then
+            disable_weapon_chams = false;
+        end
+        
+        return
+    end
 
     local weapon = entity.get_player_weapon(local_player_index);
 
@@ -364,17 +406,17 @@ client.set_event_callback("paint", function()
     if math.abs(globals.curtime() - last_update_curtime) < 0.016 then return end
     last_update_curtime = globals.curtime();
 
-    if not pcall(update_material_group, config.weapon) then reload_materials() end
+    update_material_group(config.weapon)
 
     if in_thirdperson then
-        if not pcall(update_material_group, config.facemask) then reload_materials() end
-        if not pcall(update_material_group, config.player) then reload_materials() end
+        update_material_group(config.facemask)
+        update_material_group(config.player)
 
         return
     end
 
-    if not pcall(update_material_group, config.arms) then reload_materials() end
-    if not pcall(update_material_group, config.sleeves) then reload_materials() end
+    update_material_group(config.arms)
+    update_material_group(config.sleeves)
 end)
 
 local function HideUiElements(visible)
@@ -425,16 +467,16 @@ local function get_dist(vec)
     return math.sqrt((local_pos[1] - vec[0])^2 + (local_pos[2] - vec[1])^2 + (local_pos[3] - vec[2])^2)
 end;
 
-client.delay_call(1, function()
+client.delay_call(2, function()
     reload_materials()
 
     IStudioRender.__draw_model = IStudioRender.__hook.hook("void (__fastcall*)(void*, void*, void*, const DrawModelInfo_t&, void*, float*, float*, float[3], const int32_t)", function(this, ecx, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
+        local mdl = ffi.string(info.studio_hdr.name)
+        local entindex = -1;
+
+        IStudioRender.draw_model_context = {[0] = ecx; results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags};
+
         pcall(function()
-            local mdl = ffi.string(info.studio_hdr.name)
-            local entindex = -1;
-
-            IStudioRender.draw_model_context = {[0] = ecx; results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags};
-
             if info.renderable ~= ffi.NULL then
                 if not IClientRenderable.__GetClientUnknown then
                     local IClientUnknown = ffi.cast("void*** (__thiscall*)(void*)", info.renderable[0][0])(info.renderable);
@@ -449,68 +491,68 @@ client.delay_call(1, function()
 
                 entindex = IClientRenderable:GetEntIndex(info.renderable);
             end
+        end)
 
-            if mdl:find("weapons.._") then
-                if mdl:find("/arms/glove") then
-                    in_thirdperson = false;
-        
-                    SetModelOverrideSettings(config.arms)
+        if mdl:find("weapons.._") then
+            if mdl:find("/arms/glove") then
+                in_thirdperson = false;
+    
+                pcall(SetModelOverrideSettings, config.arms)
 
-                    return
+                return
 
-                elseif in_thirdperson then
-                    local is_inhand_item = local_weapons[entindex];
-                    if is_inhand_item or entindex == -1 then
-                        if is_inhand_item or get_dist(model_origin) <= 30 then
-                            SetModelOverrideSettings(config.weapon)
-
-                            return
-                        end
-                    end
-        
-                elseif mdl:find("v") == 9 then
-                    if mdl:find("\\") then
-                        if disable_weapon_chams then
-                            IStudioRender:draw_model()
-                        
-                        else
-                            SetModelOverrideSettings(config.weapon)
-
-                        end
-                        
-                        return
-        
-                    else
-                        SetModelOverrideSettings(config.sleeves)
+            elseif in_thirdperson then
+                local is_inhand_item = local_weapons[entindex];
+                if (is_inhand_item or entindex == -1) and #local_weapons > 0 then
+                    if is_inhand_item or get_dist(model_origin) <= 30 then
+                        pcall(SetModelOverrideSettings, config.weapon)
 
                         return
                     end
                 end
-        
-                IStudioRender:draw_model()
-                return
+    
+            elseif mdl:find("v") == 9 then
+                if mdl:find("\\") then
+                    if disable_weapon_chams then
+                        IStudioRender:draw_model()
+                    
+                    else
+                        pcall(SetModelOverrideSettings, config.weapon)
+
+                    end
+                    
+                    return
+    
+                else
+                    pcall(SetModelOverrideSettings, config.sleeves)
+
+                    return
+                end
             end
-        
-            if in_thirdperson and mdl:find("facemask") then
-                SetModelOverrideSettings(config.facemask)
-
-                return
-            end
-
-            if entindex == -1 then
-                IStudioRender:draw_model()
-                return
-        
-            elseif entindex == local_player_index then
-                in_thirdperson = true;
-
-                SetModelOverrideSettings(config.player)
-
-                return
-            end
-        
+    
             IStudioRender:draw_model()
-        end)  
+            return
+        end
+    
+        if in_thirdperson and mdl:find("facemask") then
+            pcall(SetModelOverrideSettings, config.facemask)
+
+            return
+        end
+
+        if entindex == -1 then
+            IStudioRender:draw_model()
+            return
+    
+        elseif entindex == local_player_index then
+            in_thirdperson = true;
+
+            pcall(SetModelOverrideSettings, config.player)
+
+            return
+        end
+    
+        IStudioRender:draw_model() 
     end, 29)
 end)
 
