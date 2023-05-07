@@ -44,13 +44,15 @@ local MaterialIndexing = {
     };
 };
 
-local Grenades = {
-    ["CFlashbang"] = true;
-    ["CHEGrenade"] = true;
-    ["CDecoyGrenade"] = true;
-    ["CSmokeGrenade"] = true;
-    ["CMolotovGrenade"] = true;
-    ["CIncendiaryGrenade"] = true;
+local Weapons = {
+    ["CFlashbang"] = 1;
+    ["CHEGrenade"] = 1;
+    ["CDecoyGrenade"] = 1;
+    ["CSmokeGrenade"] = 1;
+    ["CMolotovGrenade"] = 1;
+    ["CIncendiaryGrenade"] = 1;
+    ["CWeaponSG556"] = 2;
+    ["CWeaponAug"] = 2;
 };
 
 local function CreateConfigGroup(n)
@@ -269,6 +271,7 @@ local IClientRenderable = {
 
 local in_thirdperson = false;
 local transparency = 1;
+local disable_weapon_chams = false;
 local local_player_index = -1;
 local local_weapons = {};
 local local_pos = {0, 0, 0};
@@ -345,7 +348,11 @@ client.set_event_callback("setup_command", function()
 
     local_pos = {entity.hitbox_position(local_player_index, 2)};
 
-    transparency = (in_thirdperson and (entity.get_prop(local_player_index, "m_bIsScoped") == 1 or Grenades[entity.get_classname(weapon)])) and config.transparency or 1;
+    local weapon_type = Weapons[entity.get_classname(weapon)] or 0;
+    local scoped = entity.get_prop(local_player_index, "m_bIsScoped") == 1;
+
+    disable_weapon_chams = not in_thirdperson and weapon_type == 2 and scoped;
+    transparency = (in_thirdperson and (scoped or weapon_type == 1)) and config.transparency or 1;
 
     local_weapons = {};
     for _, entindex in pairs(entity.get_all("CBaseWeaponWorldModel")) do
@@ -357,44 +364,17 @@ client.set_event_callback("paint", function()
     if math.abs(globals.curtime() - last_update_curtime) < 0.016 then return end
     last_update_curtime = globals.curtime();
 
-    local status, err = pcall(update_material_group, config.weapon)
-    if not status then
-        print("[7] Error Detected Reloading Materials, Error Below.")
-        print(err)
-        reload_materials()
-    end
+    if not pcall(update_material_group, config.weapon) then reload_materials() end
 
     if in_thirdperson then
-        local status, err = pcall(update_material_group, config.facemask)
-        if not status then
-            print("[8] Error Detected Reloading Materials, Error Below.")
-            print(err)
-            reload_materials()
-        end
-
-        local status, err = pcall(update_material_group, config.player)
-        if not status then
-            print("[9] Error Detected Reloading Materials, Error Below.")
-            print(err)
-            reload_materials()
-        end
+        if not pcall(update_material_group, config.facemask) then reload_materials() end
+        if not pcall(update_material_group, config.player) then reload_materials() end
 
         return
     end
 
-    local status, err = pcall(update_material_group, config.arms)
-    if not status then
-        print("[10] Error Detected Reloading Materials, Error Below.")
-        print(err)
-        reload_materials()
-    end
-
-    local status, err = pcall(update_material_group, config.sleeves)
-    if not status then
-        print("[11] Error Detected Reloading Materials, Error Below.")
-        print(err)
-        reload_materials()
-    end
+    if not pcall(update_material_group, config.arms) then reload_materials() end
+    if not pcall(update_material_group, config.sleeves) then reload_materials() end
 end)
 
 local function HideUiElements(visible)
@@ -435,8 +415,7 @@ local function SetModelOverrideSettings(cfg)
         IStudioRender:draw_model()
     end
 
-    local glow_fill = get(cfg.glow_fill);
-    if glow_fill > 0 then
+    if get(cfg.glow_fill) > 0 then
         IStudioRender:forced_material_override(cfg.pglow_material)
         IStudioRender:draw_model()
     end
@@ -450,12 +429,12 @@ client.delay_call(1, function()
     reload_materials()
 
     IStudioRender.__draw_model = IStudioRender.__hook.hook("void (__fastcall*)(void*, void*, void*, const DrawModelInfo_t&, void*, float*, float*, float[3], const int32_t)", function(this, ecx, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
-        local mdl = ffi.string(info.studio_hdr.name)
-        local entindex = -1;
-
-        IStudioRender.draw_model_context = {[0] = ecx; results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags};
-
         pcall(function()
+            local mdl = ffi.string(info.studio_hdr.name)
+            local entindex = -1;
+
+            IStudioRender.draw_model_context = {[0] = ecx; results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags};
+
             if info.renderable ~= ffi.NULL then
                 if not IClientRenderable.__GetClientUnknown then
                     local IClientUnknown = ffi.cast("void*** (__thiscall*)(void*)", info.renderable[0][0])(info.renderable);
@@ -470,98 +449,68 @@ client.delay_call(1, function()
 
                 entindex = IClientRenderable:GetEntIndex(info.renderable);
             end
-        end)
 
-        if mdl:find("weapons.._") then
-            if mdl:find("/arms/glove") then
-                in_thirdperson = false;
-    
-                local status, err = pcall(SetModelOverrideSettings, config.arms);
-                if not status then
-                    print("[1] Error Detected Reloading Materials, Error Below.")
-                    print(err)
-                    reload_materials()
-                end
+            if mdl:find("weapons.._") then
+                if mdl:find("/arms/glove") then
+                    in_thirdperson = false;
+        
+                    SetModelOverrideSettings(config.arms)
 
-                return
-    
-            elseif in_thirdperson then
-                local is_inhand_item = local_weapons[entindex];
-                if is_inhand_item or entindex == -1 then
-                    if is_inhand_item or get_dist(model_origin) <= 30 then
-                        local status, err = pcall(SetModelOverrideSettings, config.weapon)
-                        if not status then
-                            print("[2] Error Detected Reloading Materials, Error Below.")
-                            print(err)
-                            reload_materials()
+                    return
+
+                elseif in_thirdperson then
+                    local is_inhand_item = local_weapons[entindex];
+                    if is_inhand_item or entindex == -1 then
+                        if is_inhand_item or get_dist(model_origin) <= 30 then
+                            SetModelOverrideSettings(config.weapon)
+
+                            return
                         end
+                    end
+        
+                elseif mdl:find("v") == 9 then
+                    if mdl:find("\\") then
+                        if disable_weapon_chams then
+                            IStudioRender:draw_model()
+                        
+                        else
+                            SetModelOverrideSettings(config.weapon)
+
+                        end
+                        
+                        return
+        
+                    else
+                        SetModelOverrideSettings(config.sleeves)
 
                         return
-    
                     end
                 end
-    
-            elseif mdl:find("v") == 9 then
-                if mdl:find("\\") then
-                    local status, err = pcall(SetModelOverrideSettings, config.weapon)
-                    if not status then
-                        print("[3] Error Detected Reloading Materials, Error Below.")
-                        print(err)
-                        reload_materials()
-                    end
-
-                    return
-    
-                else
-                    local status, err = pcall(SetModelOverrideSettings, config.sleeves)
-                    if not status then
-                        print("[4] Error Detected Reloading Materials, Error Below.")
-                        print(err)
-                        reload_materials()
-                    end
-
-                    return
-    
-                end
+        
+                IStudioRender:draw_model()
+                return
             end
-    
+        
+            if in_thirdperson and mdl:find("facemask") then
+                SetModelOverrideSettings(config.facemask)
+
+                return
+            end
+
+            if entindex == -1 then
+                IStudioRender:draw_model()
+                return
+        
+            elseif entindex == local_player_index then
+                in_thirdperson = true;
+
+                SetModelOverrideSettings(config.player)
+
+                return
+            end
+        
             IStudioRender:draw_model()
-            return
-        end
-    
-        if in_thirdperson and mdl:find("facemask") then
-            local status, err = pcall(SetModelOverrideSettings, config.facemask)
-            if not status then
-                print("[5] Error Detected Reloading Materials, Error Below.")
-                print(err)
-                reload_materials()
-            end
-
-            return
-
-        end
-
-        if entindex == -1 then
-            
-    
-            IStudioRender:draw_model()
-            return
-    
-        elseif entindex == local_player_index then
-            in_thirdperson = true;
-    
-            local status, err = pcall(SetModelOverrideSettings, config.player)
-            if not status then
-                print("[6] Error Detected Reloading Materials, Error Below.")
-                print(err)
-                reload_materials()
-            end
-
-            return
-    
-        end
-    
-        IStudioRender:draw_model()
+        end)  
     end, 29)
 end)
 
