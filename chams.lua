@@ -287,7 +287,7 @@ local function update_material_group(cfg)
             if main_option > 1 then
                 local mat = cfg.main_material[main_option - 2];
                 local r, g, b, a = get(cfg.main_color);
-                local rr, rg, rb, _ = get(cfg.main_reflectivity_color);
+                local rr, rg, rb, ra = get(cfg.main_reflectivity_color);
 
                 mat:set_shader_param("$pearlescentinput", get(cfg.main_pearlescense))
                 mat:set_shader_param("$rimlightinput", get(cfg.main_rimglow))
