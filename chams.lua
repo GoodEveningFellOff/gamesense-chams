@@ -51,7 +51,7 @@ local Weapons = {
     ["CSmokeGrenade"] = 1;
     ["CMolotovGrenade"] = 1;
     ["CIncendiaryGrenade"] = 1;
-    ["CWeaponSG553"] = 2;
+    ["CWeaponSG556"] = 2;
     ["CWeaponAug"] = 2;
 };
 
