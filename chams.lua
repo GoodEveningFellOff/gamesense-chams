@@ -437,29 +437,35 @@ HideUiElements(false)
 local function SetModelOverrideSettings(cfg)
     local get = ui.get;
 
-    local main_option = MaterialIndexing.base[get(cfg.main_option)];
-    if main_option ~= 1 then
-        if main_option < 3 then
-            IStudioRender:set_color_modulation(1, 1, 1)
-            IStudioRender:set_alpha_modulation(transparency)
+    local status, err = pcall(function()
+        local main_option = MaterialIndexing.base[get(cfg.main_option)];
+        if main_option ~= 1 then
+            if main_option < 3 then
+                IStudioRender:set_color_modulation(1, 1, 1)
+                IStudioRender:set_alpha_modulation(transparency)
+                IStudioRender:draw_model()
+            end
+
+            if main_option > 1 then
+                IStudioRender:forced_material_override(cfg.pmain_material[main_option - 2])
+                IStudioRender:draw_model()
+            end
+        end
+        
+        local animated_option = MaterialIndexing.animated[get(cfg.animated_option)];
+        if animated_option > 0 then
+            IStudioRender:forced_material_override(cfg.panimated_material[animated_option - 1])
             IStudioRender:draw_model()
         end
 
-        if main_option > 1 then
-            IStudioRender:forced_material_override(cfg.pmain_material[main_option - 2])
+        if get(cfg.glow_fill) > 0 then
+            IStudioRender:forced_material_override(cfg.pglow_material)
             IStudioRender:draw_model()
         end
-    end
+    end)
     
-    local animated_option = MaterialIndexing.animated[get(cfg.animated_option)];
-    if animated_option > 0 then
-        IStudioRender:forced_material_override(cfg.panimated_material[animated_option - 1])
-        IStudioRender:draw_model()
-    end
-
-    if get(cfg.glow_fill) > 0 then
-        IStudioRender:forced_material_override(cfg.pglow_material)
-        IStudioRender:draw_model()
+    if not status then
+        reload_materials()
     end
 end
 
@@ -467,7 +473,7 @@ local function get_dist(vec)
     return math.sqrt((local_pos[1] - vec[0])^2 + (local_pos[2] - vec[1])^2 + (local_pos[3] - vec[2])^2)
 end;
 
-client.delay_call(2, function()
+client.delay_call(1, function()
     reload_materials()
 
     IStudioRender.__draw_model = IStudioRender.__hook.hook("void (__fastcall*)(void*, void*, void*, const DrawModelInfo_t&, void*, float*, float*, float[3], const int32_t)", function(this, ecx, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
@@ -478,7 +484,7 @@ client.delay_call(2, function()
 
         pcall(function()
             if info.renderable ~= ffi.NULL then
-                if not IClientRenderable.__GetClientUnknown then
+                if not (IClientRenderable.__GetClientUnknown and IClientRenderable.__GetClientNetworkable and IClientRenderable.__GetEntIndex) then
                     local IClientUnknown = ffi.cast("void*** (__thiscall*)(void*)", info.renderable[0][0])(info.renderable);
                     local IClientNetworkable = ffi.cast("void*** (__thiscall*)(void*)", IClientUnknown[0][4])(IClientUnknown);
 
@@ -496,8 +502,8 @@ client.delay_call(2, function()
         if mdl:find("weapons.._") then
             if mdl:find("/arms/glove") then
                 in_thirdperson = false;
-    
-                pcall(SetModelOverrideSettings, config.arms)
+                
+                SetModelOverrideSettings(config.arms)
 
                 return
 
@@ -505,7 +511,7 @@ client.delay_call(2, function()
                 local is_inhand_item = local_weapons[entindex];
                 if (is_inhand_item or entindex == -1) and #local_weapons > 0 then
                     if is_inhand_item or get_dist(model_origin) <= 30 then
-                        pcall(SetModelOverrideSettings, config.weapon)
+                        SetModelOverrideSettings(config.weapon)
 
                         return
                     end
@@ -517,14 +523,14 @@ client.delay_call(2, function()
                         IStudioRender:draw_model()
                     
                     else
-                        pcall(SetModelOverrideSettings, config.weapon)
+                        SetModelOverrideSettings(config.weapon)
 
                     end
                     
                     return
     
                 else
-                    pcall(SetModelOverrideSettings, config.sleeves)
+                    SetModelOverrideSettings(config.sleeves)
 
                     return
                 end
@@ -535,7 +541,7 @@ client.delay_call(2, function()
         end
     
         if in_thirdperson and mdl:find("facemask") then
-            pcall(SetModelOverrideSettings, config.facemask)
+            SetModelOverrideSettings(config.facemask)
 
             return
         end
@@ -547,7 +553,7 @@ client.delay_call(2, function()
         elseif entindex == local_player_index then
             in_thirdperson = true;
 
-            pcall(SetModelOverrideSettings, config.player)
+            SetModelOverrideSettings(config.player)
 
             return
         end
