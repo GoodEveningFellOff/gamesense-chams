@@ -140,7 +140,7 @@ local interfaces = {
     studio_render = ffi.cast("void***", client.create_interface("studiorender.dll", "VStudioRender026"));
 };
 
-local client_proxy = { -- Thank you NEZU https://github.com/nezu-cc/ServerCrasher/blob/main/GS/Crasher.lua
+local client_proxy = {
     --call    sub_10996300 ; 51 C3
     __address = client.find_signature("client.dll", "\x51\xC3");
 
@@ -276,6 +276,7 @@ local local_player_index = -1;
 local local_weapons = {};
 local local_pos = {0, 0, 0};
 local last_update_curtime = 0;
+local last_error_curtime = 0;
 local ENT_ENTRY_MASK = bit.lshift(1, 12) - 1; --> entity_handle & ENT_ENTRY_MASK = entity_index <
 
 local function update_material_group(cfg)
@@ -357,29 +358,7 @@ client.set_event_callback("net_update_end", function()
     if not entity.is_alive(local_player_index) then
         transparency = 1;
         local_weapons = {};
-
-        local status, err = pcall(function()
-            local spectated_player_index = bit.band(entity.get_prop(local_player_index, "m_hObserverTarget"), ENT_ENTRY_MASK) or -1;
-            if spectated_player_index == -1 then 
-                disable_weapon_chams = false;
-
-                return 
-            end
-
-            local weapon = entity.get_player_weapon(spectated_player_index);
-
-            if not weapon then 
-                disable_weapon_chams = false;
-
-                return 
-            end
-
-            disable_weapon_chams = not in_thirdperson and (Weapons[entity.get_classname(weapon)] or 0) == 2 and entity.get_prop(spectated_player_index, "m_bIsScoped") == 1;
-        end)
-        
-        if not status then
-            disable_weapon_chams = false;
-        end
+        disable_weapon_chams = false;
         
         return
     end
@@ -398,12 +377,14 @@ client.set_event_callback("net_update_end", function()
 
     local_weapons = {};
     for _, entindex in pairs(entity.get_all("CBaseWeaponWorldModel")) do
-        local_weapons[entindex] = bit.band(entity.get_prop(entindex, "moveparent"), ENT_ENTRY_MASK) == local_player_index;
+        if bit.band(entity.get_prop(entindex, "moveparent"), ENT_ENTRY_MASK) == local_player_index then
+            local_weapons[entindex] = true;
+        end
     end
 end)
 
 client.set_event_callback("paint", function()
-    if math.abs(globals.curtime() - last_update_curtime) < 0.016 then return end
+    if math.abs(globals.curtime() - last_update_curtime) < 0.032 then return end
     last_update_curtime = globals.curtime();
 
     update_material_group(config.weapon)
@@ -592,6 +573,12 @@ reload_materials = function()
         tbl.glow_material =  materialsystem.find_material("custom_chams/" .. file_extention .. "_glow.vmt", true);
         tbl.pglow_material = IMaterialSystem:find_material("custom_chams/" .. file_extention .. "_glow.vmt");
     end
+
+    if math.abs(globals.curtime() - last_error_curtime) < 1 then
+        print("[CHAMS SCRIPT] Possible error, ensure you have all materials installed: https://github.com/GoodEveningFellOff/required-materials")
+    end
+        
+    last_error_curtime = globals.curtime();
 end;
 
 ui.set_callback(config.selection, function()
