@@ -7,44 +7,35 @@ local ffi = require("ffi");
 local bit = require("bit");
 ffi.cdef([[
     typedef struct {
-        int id;
-        int version;
-        int checksum;
+        char __pad[12];
         char name[64];
     } studiohdr_t;
 
     typedef struct {
-        studiohdr_t* studio_hdr;
-        void* hardware_data;
-        int32_t decals;
-        int32_t skin;
-        int32_t body;
-        int32_t hitbox_set;
-        void*** renderable;
+        studiohdr_t* m_pStudioHdr;
+        char __pad[20];
+        void* m_pClientEntity;
     } DrawModelInfo_t;
 ]])
 
-
-local MaterialIndexing = {
-    base = {
-        ["Off"] = 0;
-        ["Invisible"] = 1;
-        ["Material"] = 2;
-        ["Color"] = 3;
-        ["Flat"] = 4;
-    };
-
-    animated = {
-        ["Disabled"] = 0;
-        ["Tazer Beam"] = 1; 
-        ["Hemisphere Height"] = 2; 
-        ["Zone Warning"] = 3; 
-        ["Bendybeam"] = 4; 
-        ["Dreamhack"] = 5;
-    };
+local EBaseMaterials = { 
+    ["Off"]       = 0;
+    ["Invisible"] = 1;
+    ["Material"]  = 2;
+    ["Color"]     = 3;
+    ["Flat"]      = 4; 
 };
 
-local Weapons = {
+local EAnimatedMaterials = { 
+    ["Disabled"]          = 0;
+    ["Tazer Beam"]        = 1; 
+    ["Hemisphere Height"] = 2; 
+    ["Zone Warning"]      = 3; 
+    ["Bendybeam"]         = 4; 
+    ["Dreamhack"]         = 5;
+};
+
+local EWeaponTypes = {
     ["CFlashbang"] = 1;
     ["CHEGrenade"] = 1;
     ["CDecoyGrenade"] = 1;
@@ -55,546 +46,680 @@ local Weapons = {
     ["CWeaponAug"] = 2;
 };
 
-local function CreateConfigGroup(n)
-    local tbl = {
-        main_option = ui.new_combobox("VISUALS", "Colored models", "\aC8FF37FFBase\n" .. n, {"Off", "Invisible", "Material", "Color", "Flat"});
-        main_color = ui.new_color_picker("VISUALS", "Colored models", "Base Color" .. n, 255, 255, 255, 255);
-        main_pearlescense = ui.new_slider("VISUALS", "Colored models", "Pearlescense\n" .. n, -100, 100, 0, true, "%", 1, {[0] = "Off"});
-        main_rimglow = ui.new_slider("VISUALS", "Colored models", "Rimglow\n" .. n, 0, 100, 0, true, "%", 1, {[0] = "Off"});
-        main_reflectivity = ui.new_slider("VISUALS", "Colored models", "Reflectivity\n" .. n, 0, 100, 0, true, "%", 1, {[0] = "Off"});
-        main_reflectivity_color = ui.new_color_picker("VISUALS", "Colored models", "Reflectivity Color" .. n, 255, 255, 255, 255);
+local function WritePointerToAddress(...) end
+do
+    local pTrampoline = client.find_signature("client.dll", "\x51\xC3")
 
-        animated_option = ui.new_combobox("VISUALS", "Colored models", "\aC8FF37FFAnimated\n" .. n, {"Disabled", "Tazer Beam", "Hemisphere Height", "Zone Warning", "Bendybeam", "Dreamhack"});
-        animated_color = ui.new_color_picker("VISUALS", "Colored models", "Animated Color" .. n, 255, 255, 255, 255);
+    -- Address to the virtual protect function.
+    local fnVirtualProtect = ffi.cast("uintptr_t (__thiscall*)(void*, uintptr_t, const char*)", pTrampoline)(
+        ffi.cast("void***", ffi.cast("char*", client.find_signature("client.dll", "\x50\xFF\x15\xCC\xCC\xCC\xCC\x85\xC0\x0F\x84\xCC\xCC\xCC\xCC\x6A\x00")) + 3)[0][0],
+        ffi.cast("uintptr_t(__thiscall*)(void*, const char*)", pTrampoline)(
+            ffi.cast("void***", ffi.cast("uintptr_t", client.find_signature("client.dll", "\xC6\x06\x00\xFF\x15\xCC\xCC\xCC\xCC\x50")) + 5)[0][0], 
+            "kernel32.dll"
+        ), --> Returns Kernel32.dll base address <
+        "VirtualProtect"
+    ); --> Returns VirtualProtect Memoryapi address <
 
-        glow_fill = ui.new_slider("VISUALS", "Colored models", "\aC8FF37FFGlow\n" .. n, 0, 100, 0, true, "%", 1, {[0] = "Off"});
-        glow_color = ui.new_color_picker("VISUALS", "Colored models", "Glow Color" .. n, 255, 255, 255, 255);
+    -- We will call it with our trampoline so we prepare it by casting it to the virtual protect function type.
+    pTrampoline = ffi.cast("uintptr_t (__thiscall*)(uintptr_t, void*, uintptr_t, uintptr_t, uintptr_t*)", pTrampoline);
 
-        __wireframe = ui.new_multiselect("VISUALS", "Colored models", "Wireframe\n" .. n, { "Main", "Animated", "Glow" });
-        wireframe = {false, false, false};
-
-        main_material = {[0] = nil; nil, nil};
-        pmain_material = {[0] = nil; nil, nil};
-
-        animated_material = {[0] = nil; nil, nil, nil, nil};
-        panimated_material = {[0] = nil; nil, nil, nil, nil};
-
-        glow_material =  nil;
-        pglow_material = nil;
-
-        set_visible = function(self, visible)
-            ui.set_visible(self.main_option, visible)
-            ui.set_visible(self.main_color, visible)
-            ui.set_visible(self.main_pearlescense, visible)
-            ui.set_visible(self.main_rimglow, visible)
-            ui.set_visible(self.main_reflectivity, visible)
-            ui.set_visible(self.main_reflectivity_color, visible)
-            ui.set_visible(self.animated_option, visible)
-            ui.set_visible(self.animated_color, visible)
-            ui.set_visible(self.glow_fill, visible)
-            ui.set_visible(self.glow_color, visible)
-            ui.set_visible(self.__wireframe, visible)
-        end;
-    };
-
-    tbl:set_visible(false)
-
-    ui.set_callback(tbl.__wireframe, function()
-        local wf = {false, false, false};
-
-        for _, name in pairs(ui.get(tbl.__wireframe)) do
-            wf[(name=="Main") and 1 or (name=="Animated") and 2 or 3] = true;
-        end
-
-        tbl.wireframe = wf;
-    end)
-
-    return tbl
+    function WritePointerToAddress(lpAddress, lpValue)
+        local lpflOldProtect = ffi.new("unsigned long[1]");
+        pTrampoline(fnVirtualProtect, lpAddress, 4, 0x4, lpflOldProtect);
+        lpAddress[0] = ffi.cast("void*", lpValue);
+        pTrampoline(fnVirtualProtect, lpAddress, 4, 0x4, lpflOldProtect);
+    end
 end
 
-local reload_materials = function() end;
-
-local config = {
-    selection = ui.new_combobox("VISUALS", "Colored models", "\nGroup", { "Hide", "Weapon", "Arms", "Sleeves", "Facemask", "Player" });
-
-    weapon = CreateConfigGroup("wp");
-    arms = CreateConfigGroup("ar");
-    sleeves = CreateConfigGroup("sl");
-    facemask = CreateConfigGroup("ms");
-    player = CreateConfigGroup("pl");
-
-    __transparency = ui.new_slider("VISUALS", "Colored models", "Scoped/Grenade Transparency", 0, 100, 0, true, "%", 1, {[0] = "Off";[100] = "Full"});
-    transparency = 1;
+-- Engine client interface, used to fix glow on hdr disabled maps.
+local IEngineClient = {
+    m_pInterface = ffi.cast(ffi.typeof("void***"), client.create_interface("engine.dll", "VEngineClient014"));
 };
+do
+    fnIsHdrEnabled = ffi.cast("bool(__thiscall*)(void*)", IEngineClient.m_pInterface[0][109]);
+    function IEngineClient:IsHdrEnabled()
+        return fnIsHdrEnabled(self.m_pInterface);
+    end
+end
 
-local menu_references = {
-    local_player = ui.reference("VISUALS", "Colored models", "Local player");
-    local_player_transparency = ui.reference("VISUALS", "Colored models", "Local player transparency");
-    fake = ui.reference("VISUALS", "Colored models", "Local player fake");
-    hands = ui.reference("VISUALS", "Colored models", "Hands");
-    weapon_viewmodel = ui.reference("VISUALS", "Colored models", "Weapon viewmodel");
+-- Studio render interface, used for the draw model hook along with modulation and rendering of materials.
+local IStudioRender = {
+    m_pInterface = ffi.cast("void***", client.create_interface("studiorender.dll", "VStudioRender026"));
+    m_aDrawModelContext = {};
 };
-
-local interfaces = {
-    material_system = ffi.cast("void***", client.create_interface("materialsystem.dll", "VMaterialSystem080"));
-    studio_render = ffi.cast("void***", client.create_interface("studiorender.dll", "VStudioRender026"));
-};
-
-local client_proxy = {
-    --call    sub_10996300 ; 51 C3
-    __address = client.find_signature("client.dll", "\x51\xC3");
-
-    cast = function(self, typeof)
-        return ffi.cast(ffi.typeof(typeof), self.__address)
-    end;
-
-    bind = function(self, typeof, address)
-        local cast = self:cast(typeof);
-
-        return function(...)
-            return cast(address, ...)
-        end
-    end;
-
-    call = function(self, typeof, address, ...)
-        return self:cast(typeof)(address, ...)
-    end;
-};
-
-local Memoryapi = {
-    __VirtualProtect = client_proxy:bind(
-        "uintptr_t (__thiscall*)(uintptr_t, void*, uintptr_t, uintptr_t, uintptr_t*)", 
-
-        client_proxy:call(
-            "uintptr_t (__thiscall*)(void*, uintptr_t, const char*)",
-            ffi.cast("void***", ffi.cast("char*", client.find_signature("client.dll", "\x50\xFF\x15\xCC\xCC\xCC\xCC\x85\xC0\x0F\x84\xCC\xCC\xCC\xCC\x6A\x00")) + 3)[0][0],
-
-            client_proxy:call(
-                "uintptr_t (__thiscall*)(void*, const char*)",
-                ffi.cast("void***", ffi.cast("char*", client.find_signature("client.dll", "\xC6\x06\x00\xFF\x15\xCC\xCC\xCC\xCC\x50")) + 5)[0][0],
-                "kernel32.dll"
-            ), --> Returns Kernel32.dll base address <
-            
-            "VirtualProtect"
-        ) --> Returns VirtualProtect Memoryapi address <
-    );
-
-    VirtualProtect = function(self, lpAddress, dwSize, flNewProtect, lpflOldProtect)
-        return self.__VirtualProtect(ffi.cast("void*", lpAddress), dwSize, flNewProtect, lpflOldProtect)
-    end;
-};
-
-local hook = (function()
-    local vmt_hook = {hooks = {}};
-
-    function vmt_hook.new(vt)
-        local virtual_table, original_table = ffi.cast("intptr_t**", vt)[0], {};
-        local lpflOldProtect = ffi.new("unsigned long[1]");
-        local rtn = {}; 
-
-        rtn.hook = function(cast, func, method)
-            original_table[method] = virtual_table[method];
-
-            Memoryapi:VirtualProtect(virtual_table + method, 4, 0x4, lpflOldProtect)
-            virtual_table[method] = ffi.cast("intptr_t", ffi.cast(cast, func))
-
-            Memoryapi:VirtualProtect(virtual_table + method, 4, lpflOldProtect[0], lpflOldProtect)
-            return ffi.cast(cast, original_table[method])
-        end
-
-        rtn.unhook_method = function(method)
-            Memoryapi:VirtualProtect(virtual_table + method, 4, 0x4, lpflOldProtect)
-            virtual_table[method] = original_table[method];
-
-            Memoryapi:VirtualProtect(virtual_table + method, 4, lpflOldProtect[0], lpflOldProtect)
-            original_table[method] = nil;
-        end
-
-        rtn.unhook = function()
-            for method, _ in pairs(original_table) do
-                rtn.unhook_method(method)
-            end
-        end
-
-        table.insert(vmt_hook.hooks, rtn.unhook)
-        return rtn
+do
+    function IStudioRender:StartHook(fnDetour)
+        local T = "void (__fastcall*)(void*, void*, void*, const DrawModelInfo_t&, void*, float*, float*, float[3], const int32_t)";
+        
+        self.m_fnDrawModel = ffi.cast(T, self.m_pInterface[0][29]);
+        WritePointerToAddress(self.m_pInterface[0] + 29, ffi.cast(T, fnDetour));
     end
 
+    function IStudioRender:StopHook()
+        if(self.m_fnDrawModel)then
+            WritePointerToAddress(self.m_pInterface[0] + 29, self.m_fnDrawModel);
+        end
+    end
 
-    return vmt_hook
-end)();
+    local fnSetColorModulation = ffi.cast("void(__thiscall*)(void*, float[3])", IStudioRender.m_pInterface[0][27]);
+    function IStudioRender:SetColorModulation(flR, flG, flB)
+        fnSetColorModulation(self.m_pInterface, ffi.new("float[3]", flR, flG, flB));
+    end
+
+    local fnSetAlphaModulation = ffi.cast("void(__thiscall*)(void*, float)", IStudioRender.m_pInterface[0][28]);
+    function IStudioRender:SetAlphaModulation(flAlpha)
+        fnSetAlphaModulation(self.m_pInterface, flAlpha);
+    end
+
+    function IStudioRender:DrawModel()
+        self.m_fnDrawModel(self.m_pInterface, unpack(self.m_aDrawModelContext));
+    end
+
+    local fnForcedMaterialOverride = ffi.cast("void(__thiscall*)(void*, void*, const int32_t, const int32_t)", IStudioRender.m_pInterface[0][33]);
+    function IStudioRender:ForcedMaterialOverride(mat)
+        if(not mat)then
+            fnForcedMaterialOverride(self.m_pInterface, ffi.cast("void*", ffi.cast("uintptr_t", 0)), 0, -1);
+            return;
+        end
+
+        fnForcedMaterialOverride(self.m_pInterface, ffi.cast("void*", mat), 0, -1);
+        self:DrawModel();
+    end
+end
+
+
+local IClientRenderable  = {
+    New = function(self, this)
+        local class = { [0] = this; };
+        setmetatable(class, self);
+        self.__index = self;
+        return class;
+    end;
+};
+do -- IClientRenderable // START
+
+    -- Goes through IClientUnknown to get the entity handle and uses that to get the base entity. 
+    local ENT_ENTRY_MASK = bit.lshift(1, 12) - 1;
+    local fnGetIClientUnknown = nil;
+    local fnGetRefEHandle = nil;
+    function IClientRenderable:GetEntityIndex()
+        if(self[0] == nil)then
+            return -1;
+        end
+
+        if(not fnGetIClientUnknown)then
+            fnGetIClientUnknown = ffi.cast("void*(__thiscall*)(void*)", ffi.cast("void***", self[0])[0][0]);
+        end
+
+        local pClientUnknown = fnGetIClientUnknown(self[0]);
+        if(not pClientUnknown)then
+            return -1;
+        end
+
+        if(not fnGetRefEHandle)then
+            fnGetRefEHandle = ffi.cast("uint32_t*(__thiscall*)(void*)", ffi.cast("void***", pClientUnknown)[0][2]);
+        end
+
+        local iIndex = bit.band(fnGetRefEHandle(pClientUnknown)[0], ENT_ENTRY_MASK);
+        return iIndex;--(iIndex > entity_list.get_highest_entity_index()) and -1 or iIndex;
+    end
+
+    local fnGetShadowParent = nil;
+    function IClientRenderable:GetOwnerIndex()
+        if(self[0] == nil)then
+            return -1;
+        end
+
+        if(not fnGetShadowParent)then
+            fnGetShadowParent = ffi.cast("void*(__thiscall*)(void*)", ffi.cast("void***", self[0])[0][25]);
+        end
+
+        return (IClientRenderable:New(fnGetShadowParent(self[0]))):GetEntityIndex();
+    end
+end -- IClientRenderable // END
+
+local IMaterial = {
+    New = function(self, this)
+        local class = { [0] = this; };
+        setmetatable(class, self);
+        self.__index = self;
+        return class;
+    end;
+};
+do -- IMaterial // START
+    local fnIncrementReferenceCount = nil;
+    function IMaterial:IncrementReferenceCount()
+        if(self[0] == nil)then
+            return;
+        end
+
+        if(not fnIncrementReferenceCount)then
+            fnIncrementReferenceCount = ffi.cast("void*(__thiscall*)(void*)", ffi.cast("void***", self[0])[0][12]);
+        end
+
+        fnIncrementReferenceCount(self[0]);
+    end
+
+    local fnDecrementReferenceCount = nil;
+    function IMaterial:DecrementReferenceCount()
+        if(self[0] == nil)then
+            return;
+        end
+
+        if(not fnDecrementReferenceCount)then
+            fnDecrementReferenceCount = ffi.cast("void*(__thiscall*)(void*)", ffi.cast("void***", self[0])[0][13]);
+        end
+
+        fnDecrementReferenceCount(self[0]);
+    end
+end -- IMaterial // END
 
 local IMaterialSystem = {
-    __find_material = ffi.cast("void* (__thiscall*)(void*, const char*, const char*, bool, const char*)", interfaces.material_system[0][84]);
+    m_pInterface = ffi.cast("void***", client.create_interface("materialsystem.dll", "VMaterialSystem080"));
+};
+do -- IMaterialsSystem // START
+    local fnFindMaterial = ffi.cast("void* (__thiscall*)(void*, const char*, const char*, bool, const char*)", IMaterialSystem.m_pInterface[0][84]);
+    function IMaterialSystem:FindMaterial(sName)
+        return IMaterial:New(fnFindMaterial(self.m_pInterface, sName, "", true, ""));
+    end
+end -- IMaterialsSystem // END
 
-    find_material = function(self, name)
-        return self.__find_material(interfaces.material_system, name, "", true, "")
+local sTab = "LUA";
+local sContainer = "A";
+
+local UI = {
+    Visuals = {
+        Enable = ui.reference("VISUALS", "Colored models", "Local player");
+        Transparency = ui.reference("VISUALS", "Colored models", "Local player transparency");
+        Fake = ui.reference("VISUALS", "Colored models", "Local player fake");
+        Hands = ui.reference("VISUALS", "Colored models", "Hands");
+        Weapon = ui.reference("VISUALS", "Colored models", "Weapon viewmodel");
+    };
+
+    m_guiGroup = ui.new_combobox(sTab, sContainer, "Group\nCHAMS", {"Hide", "Player", "Desync", "Arms", "Sleeves", "Weapon", "Attachments", "Mask"});
+    m_guiDesync = ui.new_checkbox(sTab, sContainer, "Local Fake\nCHAMS");
+    m_guiTransparencyOptions = ui.new_multiselect(sTab, sContainer, "Transparency Options\nCHAMS", { "Scoped", "Grenades", "Interpolate" });
+    m_guiSpacer = ui.new_label(sTab, sContainer, " \nCHAMS_SPACER");
+
+    m_groupPlayer      = {};
+    m_groupDesync      = {};
+    m_groupArms        = {};
+    m_groupSleeves     = {};
+    m_groupWeapon      = {};
+    m_groupAttachments = {};
+    m_groupMask        = {};
+
+    Organize = function(self, bUnload)
+        local sActiveGroup = ui.get(self.m_guiGroup);
+
+        self.m_groupPlayer:SetVisible(     sActiveGroup == "Player");
+        self.m_groupDesync:SetVisible(     sActiveGroup == "Desync");
+        self.m_groupArms:SetVisible(       sActiveGroup == "Arms");
+        self.m_groupSleeves:SetVisible(    sActiveGroup == "Sleeves");
+        self.m_groupWeapon:SetVisible(     sActiveGroup == "Weapon");
+        self.m_groupAttachments:SetVisible(sActiveGroup == "Attachments");
+        self.m_groupMask:SetVisible(       sActiveGroup == "Mask");
+
+        ui.set_visible(self.Visuals.Enable, bUnload);
+        ui.set_visible(self.Visuals.Enable, Transparency);
+        ui.set_visible(self.Visuals.Enable, Fake);
+        ui.set_visible(self.Visuals.Enable, Hands);
+        ui.set_visible(self.Visuals.Enable, Weapon);
+    end;
+
+    SetElementOverrides = function(self)
+        ui.set(self.Visuals.Enable, false);
+        ui.set(self.Visuals.Transparency, {});
+        ui.set(self.Visuals.Fake, ui.get(self.m_guiDesync));
+        ui.set(self.Visuals.Hands, false);
+        ui.set(self.Visuals.Weapon, false);
     end;
 };
 
-local IStudioRender = {
-    __hook = hook.new(interfaces.studio_render);
-    __set_color_modulation = ffi.cast("void (__thiscall*)(void*, float [3])", interfaces.studio_render[0][27]);
-    __set_alpha_modulation = ffi.cast("void (__thiscall*)(void*, float)", interfaces.studio_render[0][28]);
-    __draw_model = nil;
-    __forced_material_override = ffi.cast("void (__thiscall*)(void*, void*, const int32_t, const int32_t)", interfaces.studio_render[0][33]);
+local function GenerateChamGroup(sConfigName, sMaterialPrefix, iGroup, bIsThirdPerson)
+    local sTab = "LUA";     -- "VISUALS"
+    local sContainer = "A"; -- "Colored models"
 
-    draw_model_context = {[0] = nil; nil, nil, nil, nil, nil, nil, nil};
+    local stConfig = {};
+    local aBaseMaterials = {};
+    local aAnimatedMaterials = {};
+    for k, v in pairs(EBaseMaterials) do
+        aBaseMaterials[v + 1] = k;
+    end
 
-    set_color_modulation = function(self, r, g, b)
-        self.__set_color_modulation(interfaces.studio_render, ffi.new("float [3]", r, g, b))
-    end;
-
-    set_alpha_modulation = function(self, alpha)
-        self.__set_alpha_modulation(interfaces.studio_render, alpha)
-    end;
-
-    draw_model = function(self)
-        local ctx = self.draw_model_context;
-        self.__draw_model(interfaces.studio_render, ctx[0], ctx[1], ctx[2], ctx[3], ctx[4], ctx[5], ctx[6], ctx[7])
-    end;
-
-    forced_material_override = function(self, mat)
-        self.__forced_material_override(interfaces.studio_render, mat, 0, -1)
-    end;
-};
-
-local IClientRenderable = {
-    __GetClientUnknown = nil;
-    __GetClientNetworkable = nil;
-    __GetEntIndex = nil;
-
-    GetEntIndex = function(self, renderable)
-        return self.__GetEntIndex(self.__GetClientNetworkable(self.__GetClientUnknown(renderable)))
-    end;
-};
-
-local in_thirdperson = false;
-local transparency = 1;
-local disable_weapon_chams = false;
-local local_player_index = -1;
-local local_weapons = {};
-local local_pos = {0, 0, 0};
-local last_update_curtime = 0;
-local last_error_curtime = 0;
-local ENT_ENTRY_MASK = bit.lshift(1, 12) - 1; --> entity_handle & ENT_ENTRY_MASK = entity_index <
-
-local function update_material_group(cfg)
-    local get, floor = ui.get, math.floor;
+    for k, v in pairs(EAnimatedMaterials) do
+        aAnimatedMaterials[v + 1] = k;
+    end
     
-    local status, err = pcall(function()
-        local main_option = MaterialIndexing.base[get(cfg.main_option)];
-        if main_option ~= 1 then
-            if main_option > 1 then
-                local mat = cfg.main_material[main_option - 2];
-                local r, g, b, a = get(cfg.main_color);
-                local rr, rg, rb, ra = get(cfg.main_reflectivity_color);
+    stConfig.m_guiBaseMaterial = ui.new_combobox(sTab, sContainer, "Base Material\n" ..  sConfigName, aBaseMaterials);
+	stConfig.m_guiBaseColor = ui.new_color_picker(sTab, sContainer, "Base Color\n" .. sConfigName, 255, 255, 255, 255);
+    stConfig.m_guiPearlescent = ui.new_slider(sTab, sContainer, "Pearlescent\n" .. sConfigName, -100, 100, 0, true, "%", 1, {[0] = "Off"});
+    stConfig.m_guiRimlight = ui.new_slider(sTab, sContainer, "Rimlight\n" .. sConfigName, 0, 100, 0, true, "%", 1, {[0] = "Off"});
+    stConfig.m_guiReflectivity = ui.new_slider(sTab, sContainer, "Reflectivity\n" .. sConfigName, 0, 100, 0, true, "%", 1, {[0] = "Off"});
+    stConfig.m_guiReflectivityColor = ui.new_color_picker(sTab, sContainer, "Reflectivity Color\n" .. sConfigName, 255, 255, 255, 255);
+	stConfig.m_guiSpacer1 = ui.new_label(sTab, sContainer, " \n1_" .. sConfigName);
 
-                mat:set_shader_param("$pearlescentinput", get(cfg.main_pearlescense))
-                mat:set_shader_param("$rimlightinput", get(cfg.main_rimglow))
-                mat:set_shader_param("$phongr", rr)
-                mat:set_shader_param("$phongg", rg)
-                mat:set_shader_param("$phongb", rb)
-                mat:set_shader_param("$phonga", ra * get(cfg.main_reflectivity) * 0.01)
+    stConfig.m_guiAnimatedMaterial = ui.new_combobox(sTab, sContainer, "Animated Material\n" .. sConfigName, aAnimatedMaterials);
+	stConfig.m_guiAnimatedColor = ui.new_color_picker(sTab, sContainer, "Anim Color\n" .. sConfigName, 255, 255, 255, 255);
+	stConfig.m_guiScale = ui.new_slider(sTab, sContainer, "Texture Scale\n" .. sConfigName, 0, 1000, 100, true, "%", 1);
+	stConfig.m_guiAngle = ui.new_slider(sTab, sContainer, "Texture Angle\n" .. sConfigName, -180, 180, 0, true, "°", 1);
+	stConfig.m_guiScroll = ui.new_slider(sTab, sContainer, "Anim Angle\n" .. sConfigName, -180, 180, 0, true, "°", 1);
+	stConfig.m_guiSpeed = ui.new_slider(sTab, sContainer, "Anim Speed\n" .. sConfigName, 0, 500, 100, true, "%", 1);
+	stConfig.m_guiSpacer2 = ui.new_label(sTab, sContainer, " \n2_" .. sConfigName);
+	
+	stConfig.m_guiFill = ui.new_slider(sTab, sContainer, "Glow Fill\n" .. sConfigName, 0, 100, 0, true, "%", 1, {[0] = "Off"});
+    stConfig.m_guiGlow = ui.new_color_picker(sTab, sContainer, "Glow Color\n" .. sConfigName, 255, 255, 255, 255);
+    stConfig.m_guiWireframe = ui.new_multiselect(sTab, sContainer, "Wireframe\n" .. sConfigName, {"Base", "Animated", "Glow"});
+    stConfig.m_guiSpacer3 = ui.new_label(sTab, sContainer, " \n3_" .. sConfigName);
 
-                mat:set_material_var_flag(28, cfg.wireframe[1])
+    stConfig.m_guiTransparencyPercent = ui.new_slider(sTab, sContainer, "Transparency Percent\n" .. sConfigName, 0, 100, 0, true, "%", 1);
+    stConfig.m_guiTransparencyOriginal = ui.new_checkbox(sTab, sContainer, "Use Original\n" .. sConfigName);
+    
+    stConfig.m_flAlphaOverride = 1;
 
-                mat:color_modulate(r, g, b)
-                mat:alpha_modulate(floor(a * transparency))
+    stConfig.m_bIsThirdPerson = bIsThirdPerson;
+	stConfig.m_bIsVisible = true;
+    stConfig.m_bIsDisabled = false;
+    stConfig.m_sGroup = tostring(iGroup);
+    stConfig.m_aMainMaterials = {};
+    stConfig.m_aRawMainMaterials = {};
+    stConfig.m_aAnimatedMaterials = {};
+    stConfig.m_aRawAnimatedMaterials = {};
+
+    function stConfig:SetVisible(bVisible)
+        if(self.m_bIsVisible == bVisible)then
+            return;
+        end
+
+        self.m_bIsVisible = bVisible;
+        for k, v in pairs(self) do
+            if(tostring(k):find("m_gui"))then
+                ui.set_visible(v, bVisible);
             end
         end
-        
-        local animated_option = MaterialIndexing.animated[get(cfg.animated_option)];
-        if animated_option > 0 then
-            local mat = cfg.animated_material[animated_option - 1]
-            local r, g, b, a = get(cfg.animated_color);
+	end;
 
-            mat:set_material_var_flag(28, cfg.wireframe[2])
+    function stConfig:Reload()
+        self.m_aMainMaterials = {
+            [0] = materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_modulate.vmt", true);
+            [1] = materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_vertexlit.vmt", true);
+            [2] = materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_unlitgeneric.vmt", true);
+        };
+    
+        self.m_aRawMainMaterials = {
+            [0] = IMaterialSystem:FindMaterial("custom_chams/" .. self.m_sGroup .. "_modulate.vmt");
+            [1] = IMaterialSystem:FindMaterial("custom_chams/" .. self.m_sGroup .. "_vertexlit.vmt");
+            [2] = IMaterialSystem:FindMaterial("custom_chams/" .. self.m_sGroup .. "_unlitgeneric.vmt");
+        };
 
-            mat:color_modulate(r, g, b)
-            mat:alpha_modulate(floor(a * transparency))
+        for k, v in pairs(self.m_aRawMainMaterials) do
+            v:IncrementReferenceCount();
         end
-
-        local glow_fill = get(cfg.glow_fill);
-        if glow_fill > 0 then
-            local mat = cfg.glow_material;
-            local r, g, b, a = get(cfg.glow_color);
-
-            mat:set_shader_param("$envmaptintr", r)
-            mat:set_shader_param("$envmaptintg", g)
-            mat:set_shader_param("$envmaptintb", b)
-            mat:set_shader_param("$envmapfresnelfill", 100 - glow_fill)
-            mat:set_shader_param("$envmapfresnelbrightness", a / 2.55)
-
-            mat:set_material_var_flag(28, cfg.wireframe[3])
-
-            mat:color_modulate(255, 255, 255)
-            mat:alpha_modulate(floor(a * transparency))
+    
+        for i = 0, 4 do
+            self.m_aAnimatedMaterials[i] = materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_animated_" .. tostring(i) .. ".vmt", true);
+            self.m_aRawAnimatedMaterials[i] = IMaterialSystem:FindMaterial("custom_chams/" .. self.m_sGroup .. "_animated_" .. tostring(i) .. ".vmt");
+            self.m_aRawAnimatedMaterials[i]:IncrementReferenceCount();
         end
-    end)
+    
+        self.m_materialGlow =  materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_glow.vmt", true);
+        self.m_pGlowMaterial = IMaterialSystem:FindMaterial("custom_chams/" .. self.m_sGroup .. "_glow.vmt");
+        self.m_pGlowMaterial:IncrementReferenceCount();
+    end;
+    
+    stConfig:Reload();
 
-    if not status then
-        reload_materials()
-    end
-end;
-
-client.set_event_callback("net_update_end", function()
-    ui.set(menu_references.local_player, false)
-    ui.set(menu_references.local_player_transparency, "");
-    ui.set(menu_references.fake, false)
-    ui.set(menu_references.hands, false)
-    ui.set(menu_references.weapon_viewmodel, false)
-
-    local_player_index = entity.get_local_player() or -1;
-
-    if local_player_index == -1 then
-        transparency = 1;
-        local_weapons = {};
-        disable_weapon_chams = false; 
-
-        return 
-    end
-
-    if not entity.is_alive(local_player_index) then
-        transparency = 1;
-        local_weapons = {};
-        disable_weapon_chams = false;
-        
-        return
-    end
-
-    local weapon = entity.get_player_weapon(local_player_index);
-
-    if not weapon then return end
-
-    local_pos = {entity.hitbox_position(local_player_index, 2)};
-
-    local weapon_type = Weapons[entity.get_classname(weapon)] or 0;
-    local scoped = entity.get_prop(local_player_index, "m_bIsScoped") == 1;
-
-    disable_weapon_chams = not in_thirdperson and weapon_type == 2 and scoped;
-    transparency = (in_thirdperson and (scoped or weapon_type == 1)) and config.transparency or 1;
-
-    local_weapons = {};
-    for _, entindex in pairs(entity.get_all("CBaseWeaponWorldModel")) do
-        if bit.band(entity.get_prop(entindex, "moveparent"), ENT_ENTRY_MASK) == local_player_index then
-            local_weapons[entindex] = true;
-        end
-    end
-end)
-
-client.set_event_callback("paint", function()
-    if math.abs(globals.curtime() - last_update_curtime) < 0.032 then return end
-    last_update_curtime = globals.curtime();
-
-    update_material_group(config.weapon)
-
-    if in_thirdperson then
-        update_material_group(config.facemask)
-        update_material_group(config.player)
-
-        return
-    end
-
-    update_material_group(config.arms)
-    update_material_group(config.sleeves)
-end)
-
-local function HideUiElements(visible)
-    ui.set_visible(menu_references.local_player, visible)
-    ui.set_visible(menu_references.local_player_transparency, visible)
-    ui.set_visible(menu_references.fake, visible)
-    ui.set_visible(menu_references.hands, visible)
-    ui.set_visible(menu_references.weapon_viewmodel, visible)
+    return stConfig;
 end
+
+UI.m_groupPlayer      = GenerateChamGroup("Player",      "plr",       1, true );
+UI.m_groupDesync      = GenerateChamGroup("Desync",      "dsnc",      2, true );
+UI.m_groupArms        = GenerateChamGroup("Arms",        "arms",      1, false);
+UI.m_groupSleeves     = GenerateChamGroup("Sleeves",     "slvs",      2, false);
+UI.m_groupWeapon      = GenerateChamGroup("Weapon",      "wpn",       3, false);
+UI.m_groupAttachments = GenerateChamGroup("Attachments", "attchmnts", 3, true );
+UI.m_groupMask        = GenerateChamGroup("Mask",        "msk",       4, true );
+
+GenerateChamGroup = nil;
+
+-->> Create Main Cham Override Table <<
+local g_MaterialOverride = {
+    m_iGlowMultiplier = 1;
+    m_bInGame = false;
+    m_flAlphaPercent = 1;
+    m_bIsThirdPerson = false;
+
+    UpdateGlowMultiplier = function(self)
+        local bIsInGame = globals.mapname() ~= nil;
+        if(self.m_bInGame == bIsInGame)then
+            return;
+        end
+
+        self.m_bInGame = bIsInGame;
+        if(not bIsInGame)then
+            return;
+        end
+
+        self.m_iGlowMultiplier = IEngineClient:IsHdrEnabled() and 1 or 15;
+    end;
+
+    UpdateAlphaPercent = function(self, bShouldBeTransparent)
+        local flGoal = bShouldBeTransparent and 1 or 0;
+        local bInterpolate = false;
+        for _, v in pairs(ui.get(UI.m_guiTransparencyOptions))do
+            if(v == "Interpolate") then
+                bInterpolate = true;
+                break;
+            end
+        end
+
+        if(not bInterpolate)then
+            self.m_flAlphaPercent = flGoal;
+            return;
+        end
+
+        local flDelta = flGoal - self.m_flAlphaPercent;
+        if(math.abs(flDelta) < 0.05)then
+            self.m_flAlphaPercent = flGoal;
+            return;
+        end
+
+        self.m_flAlphaPercent = self.m_flAlphaPercent + flDelta * globals.frametime() * 20;
+        if(self.m_flAlphaPercent < 0)then
+            self.m_flAlphaPercent = 0;
+
+        elseif(self.m_flAlphaPercent > 1)then
+            self.m_flAlphaPercent = 1;
+        end
+    end;
+
+    UpdateMaterialSettings = function(self, stGroup)
+        local iBaseMaterial, iAnimMaterial, bGlow = EBaseMaterials[ui.get(stGroup.m_guiBaseMaterial)] - 1, EAnimatedMaterials[ui.get(stGroup.m_guiAnimatedMaterial)], ui.get(stGroup.m_guiFill) > 0;
+        local guiWireframe = stGroup.m_guiWireframe;
+
+        local aWireframe = { false, false, false };
+        for _, v in pairs(ui.get(stGroup.m_guiWireframe)) do
+            if(v == "Base")then
+                aWireframe[1] = true;
+            elseif(v ==  "Animated")then
+                aWireframe[2] = true;
+            elseif(v == "Glow")then
+                aWireframe[3] = true;
+            end
+        end
+
+        stGroup.m_flAlphaOverride = 1 + (1 - ui.get(stGroup.m_guiTransparencyPercent) / 100 - 1) * self.m_flAlphaPercent;
+        stGroup.m_bIsDisabled = (iBaseMaterial == -1 and iAnimMaterial == 0 and not bGlow) or (self.m_flAlphaPercent > 0.5 and ui.get(stGroup.m_guiTransparencyOriginal));
+
+        if(iBaseMaterial >= 1)then
+            local mat = stGroup.m_aMainMaterials[iBaseMaterial - 1];
+            local iR, iG, iB, iA = ui.get(stGroup.m_guiBaseColor);
+
+            if(iBaseMaterial ~= 1)then
+                local flRRef, flGRef, flBRef, flARef = ui.get(stGroup.m_guiReflectivityColor);
+                flARef = flARef / 2.55;
+
+				mat:set_shader_param("$pearlescentinput", ui.get(stGroup.m_guiPearlescent) * 0.5); 
+				mat:set_shader_param("$rimlightinput",   (ui.get(stGroup.m_guiRimlight) * 0.5)^2);
+				mat:set_shader_param("$phongr", flRRef * flARef);
+				mat:set_shader_param("$phongg", flGRef * flARef); 
+				mat:set_shader_param("$phongb", flBRef * flARef);
+                mat:set_shader_param("$phonga", flARef * ui.get(stGroup.m_guiReflectivity) * 0.01)
+            end
+            
+            mat:color_modulate(iR, iG, iB);
+			mat:alpha_modulate(iA * stGroup.m_flAlphaOverride);
+            mat:set_material_var_flag(28, aWireframe[1]);
+        end
+
+        if(iAnimMaterial >= 1)then
+            local mat = stGroup.m_aAnimatedMaterials[iAnimMaterial - 1];
+            local iR, iG, iB, iA = ui.get(stGroup.m_guiAnimatedColor);
+
+            mat:color_modulate(iR, iG, iB);
+			mat:alpha_modulate(iA * stGroup.m_flAlphaOverride);
+			mat:set_shader_param("$scaleinput", ui.get(stGroup.m_guiScale));
+			mat:set_shader_param("$angle", ui.get(stGroup.m_guiAngle));
+			mat:set_shader_param("$texturescrollangle", ui.get(stGroup.m_guiScroll));
+			mat:set_shader_param("$texturescrollinput", ui.get(stGroup.m_guiSpeed));
+            mat:set_material_var_flag(28, aWireframe[2]);
+        end
+    
+        if(bGlow)then
+            local mat = stGroup.m_materialGlow;
+            local iR, iG, iB, iA = ui.get(stGroup.m_guiGlow);
+    
+			mat:set_shader_param("$envmaptintr", iR);
+			mat:set_shader_param("$envmaptintg", iG);
+			mat:set_shader_param("$envmaptintb", iB);
+			mat:set_shader_param("$envmapfresnelbrightness", (iA / 2.55) * self.m_iGlowMultiplier * stGroup.m_flAlphaOverride);
+			mat:set_shader_param("$envmapfresnelfill", 100 - ui.get(stGroup.m_guiFill));
+            mat:set_material_var_flag(28, aWireframe[3]);
+        end
+    end;
+
+    OnFrameEnd = function(self)
+        if(self.m_bIsThirdPerson)then
+            for _, stGroup in pairs({UI.m_groupPlayer, UI.m_groupDesync, UI.m_groupAttachments, UI.m_groupMask}) do
+                self:UpdateMaterialSettings(stGroup);
+            end
+        else
+            for _, stGroup in pairs({UI.m_groupArms, UI.m_groupSleeves, UI.m_groupWeapon}) do
+                self:UpdateMaterialSettings(stGroup);
+            end
+        end
+    end;
+
+    Set = function(self, bDisable, stGroup)
+        if(stGroup.m_bIsThirdPerson ~= self.m_bIsThirdPerson)then
+            self.m_bIsThirdPerson = stGroup.m_bIsThirdPerson;
+            self:OnFrameEnd();
+        end
+
+        if(bDisable or stGroup.m_bIsDisabled)then
+            IStudioRender:SetAlphaModulation(stGroup.m_flAlphaOverride);
+            IStudioRender:DrawModel();
+            return;
+        end
+
+        local iBaseMaterial = EBaseMaterials[ui.get(stGroup.m_guiBaseMaterial)] - 1;
+        if(iBaseMaterial < 1)then
+            if(iBaseMaterial == -1)then
+                IStudioRender:SetAlphaModulation(stGroup.m_flAlphaOverride);
+                IStudioRender:DrawModel();
+            end
+
+        else
+
+            
+            if(iBaseMaterial == 1)then
+                IStudioRender:SetAlphaModulation(({ui.get(stGroup.m_guiBaseColor)})[4] / 255 * stGroup.m_flAlphaOverride);
+                IStudioRender:DrawModel();
+            end
+
+            IStudioRender:SetAlphaModulation(1);
+            IStudioRender:ForcedMaterialOverride(stGroup.m_aRawMainMaterials[iBaseMaterial - 1][0]);
+        end
+
+        local iAnimMaterial = EAnimatedMaterials[ui.get(stGroup.m_guiAnimatedMaterial)];
+        if(iAnimMaterial >= 1)then
+            IStudioRender:SetAlphaModulation(1);
+            IStudioRender:ForcedMaterialOverride(stGroup.m_aRawAnimatedMaterials[iAnimMaterial - 1][0]);
+        end
+    
+        if(ui.get(stGroup.m_guiFill) > 0)then
+            IStudioRender:SetAlphaModulation(1);
+            IStudioRender:ForcedMaterialOverride(stGroup.m_pGlowMaterial[0]);
+        end
+
+        IStudioRender:SetAlphaModulation(1);
+        IStudioRender:ForcedMaterialOverride();
+    end;
+};
+
+-->> Local Vars <<
+local g_iFrames = 32;
+local g_aFrameInformation = {};
+for i = 1, g_iFrames do
+    g_aFrameInformation[#g_aFrameInformation + 1] = { 
+        -10,    -- iLocalPlayerIndex
+        -10,    -- iLocalWeaponIndex
+        -10,    -- iLocalViewmodelIndex
+        false  -- bDisableWeaponChams
+    };
+end
+
+-->> Create Callbacks <<
+client.set_event_callback("paint", function()
+    local iFrame = (globals.framecount() + 1) % g_iFrames + 1;
+    if(ui.is_menu_open())then
+        UI:Organize(false);
+    end
+
+    local aFrame = { -10, -10, -10, -10, false };
+
+    UI:SetElementOverrides();
+    g_MaterialOverride:UpdateGlowMultiplier();
+    if(not g_MaterialOverride.m_bInGame)then
+        g_aFrameInformation[iFrame] = aFrame;
+        return;
+    end
+    
+    local iLocalPlayerIndex = entity.get_local_player();
+    if(not iLocalPlayerIndex)then
+        g_aFrameInformation[iFrame] = aFrame;
+        return;
+    end
+
+    -- Make this shit work when spectating.
+    if(not entity.is_alive(iLocalPlayerIndex))then
+        g_aFrameInformation[iFrame] = aFrame;
+        return;
+    end
+    aFrame[1] = iLocalPlayerIndex;
+
+    local iLocalWeaponIndex = entity.get_player_weapon(iLocalPlayerIndex);
+    if(iLocalWeaponIndex)then
+        local iWeaponWorldModelIndex = entity.get_prop(iLocalWeaponIndex, "m_hWeaponWorldModel");
+        aFrame[2] = iWeaponWorldModelIndex or -10;
+
+        local bIsScoped = entity.get_prop(iLocalPlayerIndex, "m_bIsScoped") == 1;
+        local eWeaponType = EWeaponTypes[entity.get_classname(iLocalWeaponIndex)] or 0;
+
+        aFrame[4] = bIsScoped and eWeaponType == 2;
+        
+        local bShouldBeTransparent = false;
+        local aTransparencyOptions = { false, false, false };
+        for _, v in pairs(ui.get(UI.m_guiTransparencyOptions))do
+            if((v == "Scoped" and bIsScoped) or (v == "Grenades" and eWeaponType == 1))then
+                bShouldBeTransparent = true;
+            end
+        end
+
+        -- Transparency whilst scoped / with grenades
+        g_MaterialOverride:UpdateAlphaPercent(bShouldBeTransparent);
+    end
+
+    -- Get the viewmodel entity so we can draw all of our viewmodel chams.
+    local aViewmodels = entity.get_all("CPredictedViewModel");
+    if(aViewmodels)then
+        for _, iEntityIndex in pairs(aViewmodels) do
+            local iOwnerIndex = entity.get_prop(iEntityIndex, "m_hOwner");
+            if(iOwnerIndex == iLocalPlayerIndex)then
+                aFrame[3] = iEntityIndex;
+                break;
+            end
+        end
+    end
+
+    g_aFrameInformation[iFrame] = aFrame;
+
+    -- Update all of our materials for the next time DrawModel is called.
+    g_MaterialOverride:OnFrameEnd();
+end);
 
 client.set_event_callback("shutdown", function()
-    IStudioRender.__hook.unhook()
-    HideUiElements(true)
-end)
+    IStudioRender:StopHook();
+    UI:Organize(true);
 
-HideUiElements(false)
 
-local function SetModelOverrideSettings(cfg)
-    local get = ui.get;
-
-    local status, err = pcall(function()
-        local main_option = MaterialIndexing.base[get(cfg.main_option)];
-        if main_option ~= 1 then
-            if main_option < 3 then
-                IStudioRender:set_color_modulation(1, 1, 1)
-                IStudioRender:set_alpha_modulation(transparency)
-                IStudioRender:draw_model()
-            end
-
-            if main_option > 1 then
-                IStudioRender:forced_material_override(cfg.pmain_material[main_option - 2])
-                IStudioRender:draw_model()
-            end
-        end
-        
-        local animated_option = MaterialIndexing.animated[get(cfg.animated_option)];
-        if animated_option > 0 then
-            IStudioRender:forced_material_override(cfg.panimated_material[animated_option - 1])
-            IStudioRender:draw_model()
+    for _, stGroup in pairs({UI.m_groupPlayer, UI.m_groupDesync, UI.m_groupAttachments, UI.m_groupMask, UI.m_groupArms, UI.m_groupSleeves, UI.m_groupWeapon}) do
+        for _, pMaterial in pairs(stGroup.m_aRawMainMaterials)do
+            pMaterial:DecrementReferenceCount();
         end
 
-        if get(cfg.glow_fill) > 0 then
-            IStudioRender:forced_material_override(cfg.pglow_material)
-            IStudioRender:draw_model()
+        for _, pMaterial in pairs(stGroup.m_aRawAnimatedMaterials)do
+            pMaterial:DecrementReferenceCount();
         end
-    end)
-    
-    if not status then
-        reload_materials()
+
+        stGroup.m_pGlowMaterial:DecrementReferenceCount();
     end
-end
+end);
 
-local function get_dist(vec)
-    return math.sqrt((local_pos[1] - vec[0])^2 + (local_pos[2] - vec[1])^2 + (local_pos[3] - vec[2])^2)
-end;
+local function OnDrawModel(sModel, pClientRenderable, bIsFake)
+    local iEntityIndex = pClientRenderable:GetEntityIndex();
+    local iOwnerIndex = pClientRenderable:GetOwnerIndex();
 
+    local iFrame = globals.framecount() % g_iFrames + 1;
+    local aFrame = g_aFrameInformation[iFrame];
+
+    if(iEntityIndex == aFrame[3])then
+        g_MaterialOverride:Set(aFrame[4], UI.m_groupWeapon);
+        return;
+
+    elseif(iOwnerIndex == aFrame[3])then
+        if(sModel:find("weapons/v_models/arms/glove"))then
+            g_MaterialOverride:Set(false, UI.m_groupArms);
+            
+        else
+            g_MaterialOverride:Set(false, UI.m_groupSleeves); 
+        end
+
+        return;
+    
+    elseif(iEntityIndex == aFrame[1])then
+        -- Water does wierd shit, this is a hacky fix.
+        if(not bIsFake)then
+            g_MaterialOverride:Set(false, UI.m_groupPlayer);
+
+        else
+            IStudioRender:SetColorModulation(1, 1, 1);
+            IStudioRender:ForcedMaterialOverride();
+            g_MaterialOverride:Set(false, UI.m_groupDesync);
+        end
+
+        return;
+
+    elseif(iEntityIndex == aFrame[2] or (iOwnerIndex == aFrame[1] and sModel:find("weapons\\w_")))then
+        g_MaterialOverride:Set(false, UI.m_groupAttachments);
+        return;
+
+    elseif(iOwnerIndex == aFrame[1] and sModel:find("facemasks"))then
+        g_MaterialOverride:Set(false, UI.m_groupMask); 
+        return;
+
+    -- This is very hacky for the gloves to work.
+    elseif(iOwnerIndex == aFrame[1])then
+        g_MaterialOverride:Set(false, UI.m_groupPlayer);
+        return;
+    end
+
+    IStudioRender:DrawModel();
+end 
+-- STUDIORENDER_DRAW_NO_FLEXES STUDIORENDER_DRAW_NO_SHADOWS
+--512
 client.delay_call(1, function()
-    reload_materials()
-
-    IStudioRender.__draw_model = IStudioRender.__hook.hook("void (__fastcall*)(void*, void*, void*, const DrawModelInfo_t&, void*, float*, float*, float[3], const int32_t)", function(this, ecx, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
-        local mdl = ffi.string(info.studio_hdr.name)
-        local entindex = -1;
-
-        IStudioRender.draw_model_context = {[0] = ecx; results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags};
-
-        pcall(function()
-            if info.renderable ~= ffi.NULL then
-                if not (IClientRenderable.__GetClientUnknown and IClientRenderable.__GetClientNetworkable and IClientRenderable.__GetEntIndex) then
-                    local IClientUnknown = ffi.cast("void*** (__thiscall*)(void*)", info.renderable[0][0])(info.renderable);
-                    local IClientNetworkable = ffi.cast("void*** (__thiscall*)(void*)", IClientUnknown[0][4])(IClientUnknown);
-
-                    IClientRenderable.__GetClientUnknown = ffi.cast("void*** (__thiscall*)(void*)", info.renderable[0][0]);
-                    IClientRenderable.__GetClientNetworkable = ffi.cast("void*** (__thiscall*)(void*)", IClientUnknown[0][4])
-                    IClientRenderable.__GetEntIndex = ffi.cast("int (__thiscall*)(void*)", IClientNetworkable[0][10])
-
-                    return
-                end
-
-                entindex = IClientRenderable:GetEntIndex(info.renderable);
-            end
-        end)
-
-        if mdl:find("weapons.._") then
-            if mdl:find("/arms/glove") then
-                in_thirdperson = false;
-                
-                SetModelOverrideSettings(config.arms)
-
-                return
-
-            elseif in_thirdperson then
-                local is_inhand_item = local_weapons[entindex];
-                if (is_inhand_item or entindex == -1) and #local_weapons > 0 then
-                    if is_inhand_item or get_dist(model_origin) <= 30 then
-                        SetModelOverrideSettings(config.weapon)
-
-                        return
-                    end
-                end
-    
-            elseif mdl:find("v") == 9 then
-                if mdl:find("\\") then
-                    if disable_weapon_chams then
-                        IStudioRender:draw_model()
-                    
-                    else
-                        SetModelOverrideSettings(config.weapon)
-
-                    end
-                    
-                    return
-    
-                else
-                    SetModelOverrideSettings(config.sleeves)
-
-                    return
-                end
-            end
-    
-            IStudioRender:draw_model()
-            return
-        end
-    
-        if in_thirdperson and mdl:find("facemask") then
-            SetModelOverrideSettings(config.facemask)
-
-            return
+    IStudioRender:StartHook(function(this, ecx, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
+        -- Store the context.
+        IStudioRender.m_aDrawModelContext = {ecx, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags};
+        if(not info.m_pClientEntity or (flags > 2 and flags ~= 2084))then --STUDIORENDER_DRAW_ENTIRE_MODEL, STUDIORENDER_DRAW_OPAQUE_ONLY, STUDIORENDER_DRAW_TRANSLUCENT_ONLY
+            IStudioRender:DrawModel();
+            return;
         end
 
-        if entindex == -1 then
-            IStudioRender:draw_model()
-            return
-    
-        elseif entindex == local_player_index then
-            in_thirdperson = true;
-
-            SetModelOverrideSettings(config.player)
-
-            return
+        local bSuccess, sError = pcall(OnDrawModel, ffi.string(info.m_pStudioHdr.name), IClientRenderable:New(info.m_pClientEntity), flags == 2084);
+        if(not bSuccess)then
+            print(sError);
         end
-    
-        IStudioRender:draw_model() 
-    end, 29)
-end)
-
-reload_materials = function()
-    for config_group, file_extention in pairs({
-        ["weapon"] = "wpn";
-        ["arms"] = "arm";
-        ["sleeves"] = "slv";
-        ["facemask"] = "slv";
-        ["player"] = "arm";
-    }) do
-        local tbl = config[config_group];
-
-        tbl.main_material = {
-            [0] = materialsystem.find_material("custom_chams/" .. file_extention .. "_modulate.vmt", true);
-            [1] = materialsystem.find_material("custom_chams/" .. file_extention .. "_vertexlit.vmt", true);
-            [2] = materialsystem.find_material("custom_chams/" .. file_extention .. "_unlitgeneric.vmt", true);
-        };
-
-        tbl.pmain_material = {
-            [0] = IMaterialSystem:find_material("custom_chams/" .. file_extention .. "_modulate.vmt");
-            [1] = IMaterialSystem:find_material("custom_chams/" .. file_extention .. "_vertexlit.vmt");
-            [2] = IMaterialSystem:find_material("custom_chams/" .. file_extention .. "_unlitgeneric.vmt");
-        };
-
-        for i = 0, 4 do
-            tbl.animated_material[i] = materialsystem.find_material("custom_chams/" .. file_extention .. "_animated_" .. tostring(i) .. ".vmt", true);
-            tbl.panimated_material[i] = IMaterialSystem:find_material("custom_chams/" .. file_extention .. "_animated_" .. tostring(i) .. ".vmt");
-        end
-
-        tbl.glow_material =  materialsystem.find_material("custom_chams/" .. file_extention .. "_glow.vmt", true);
-        tbl.pglow_material = IMaterialSystem:find_material("custom_chams/" .. file_extention .. "_glow.vmt");
-    end
-
-    if math.abs(globals.curtime() - last_error_curtime) < 1 then
-        print("[CHAMS SCRIPT] Possible error, ensure you have all materials installed: https://github.com/GoodEveningFellOff/required-materials")
-    end
-        
-    last_error_curtime = globals.curtime();
-end;
-
-ui.set_callback(config.selection, function()
-    local value = ui.get(config.selection);
-
-    config.weapon:set_visible(value == "Weapon")
-    config.arms:set_visible(value == "Arms")
-    config.sleeves:set_visible(value == "Sleeves")
-    config.facemask:set_visible(value == "Facemask")
-    config.player:set_visible(value == "Player")
-end)
-
-ui.set_callback(config.__transparency, function()
-    config.transparency = (100 - ui.get(config.__transparency)) / 100;
-end)
-
-config.transparency = (100 - ui.get(config.__transparency))  / 100;
-
-ui.set(config.selection, "Hide")
+    end);
+end);
