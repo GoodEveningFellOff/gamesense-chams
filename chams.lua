@@ -339,7 +339,21 @@ local function GenerateChamGroup(sConfigName, sMaterialPrefix, iGroup, bIsThirdP
         end
 	end;
 
-    function stConfig:Reload()
+    function stConfig:Unload()
+        for _, v in pairs(self.m_aRawMainMaterials)do
+            v:DecrementReferenceCount();
+        end
+
+        for _, v in pairs(self.m_aRawAnimatedMaterials)do
+            v:DecrementReferenceCount();
+        end
+
+        if(self.m_pGlowMaterial)then
+            self.m_pGlowMaterial:DecrementReferenceCount();
+        end
+    end;
+
+    function stConfig:Load()
         self.m_aMainMaterials = {
             [0] = materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_modulate.vmt", true);
             [1] = materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_vertexlit.vmt", true);
@@ -365,6 +379,11 @@ local function GenerateChamGroup(sConfigName, sMaterialPrefix, iGroup, bIsThirdP
         self.m_materialGlow =  materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_glow.vmt", true);
         self.m_pGlowMaterial = IMaterialSystem:FindMaterial("custom_chams/" .. self.m_sGroup .. "_glow.vmt");
         self.m_pGlowMaterial:IncrementReferenceCount();
+    end
+
+    function stConfig:Reload()
+        self:Unload();
+        self:Load();
     end;
     
     stConfig:Reload();
@@ -434,67 +453,73 @@ local g_MaterialOverride = {
     end;
 
     UpdateMaterialSettings = function(self, stGroup)
-        local iBaseMaterial, iAnimMaterial, bGlow = EBaseMaterials[ui.get(stGroup.m_guiBaseMaterial)] - 1, EAnimatedMaterials[ui.get(stGroup.m_guiAnimatedMaterial)], ui.get(stGroup.m_guiFill) > 0;
-        local guiWireframe = stGroup.m_guiWireframe;
+        local bStatus, sError = pcall(function()
+            local iBaseMaterial, iAnimMaterial, bGlow = EBaseMaterials[ui.get(stGroup.m_guiBaseMaterial)] - 1, EAnimatedMaterials[ui.get(stGroup.m_guiAnimatedMaterial)], ui.get(stGroup.m_guiFill) > 0;
+            local guiWireframe = stGroup.m_guiWireframe;
 
-        local aWireframe = { false, false, false };
-        for _, v in pairs(ui.get(stGroup.m_guiWireframe)) do
-            if(v == "Base")then
-                aWireframe[1] = true;
-            elseif(v ==  "Animated")then
-                aWireframe[2] = true;
-            elseif(v == "Glow")then
-                aWireframe[3] = true;
+            local aWireframe = { false, false, false };
+            for _, v in pairs(ui.get(stGroup.m_guiWireframe)) do
+                if(v == "Base")then
+                    aWireframe[1] = true;
+                elseif(v ==  "Animated")then
+                    aWireframe[2] = true;
+                elseif(v == "Glow")then
+                    aWireframe[3] = true;
+                end
             end
-        end
 
-        stGroup.m_flAlphaOverride = 1 + (1 - ui.get(stGroup.m_guiTransparencyPercent) / 100 - 1) * self.m_flAlphaPercent;
-        stGroup.m_bIsDisabled = (iBaseMaterial == -1 and iAnimMaterial == 0 and not bGlow) or (self.m_flAlphaPercent > 0.5 and ui.get(stGroup.m_guiTransparencyOriginal));
+            stGroup.m_flAlphaOverride = 1 + (1 - ui.get(stGroup.m_guiTransparencyPercent) / 100 - 1) * self.m_flAlphaPercent;
+            stGroup.m_bIsDisabled = (iBaseMaterial == -1 and iAnimMaterial == 0 and not bGlow) or (self.m_flAlphaPercent > 0.5 and ui.get(stGroup.m_guiTransparencyOriginal));
 
-        if(iBaseMaterial >= 1)then
-            local mat = stGroup.m_aMainMaterials[iBaseMaterial - 1];
-            local iR, iG, iB, iA = ui.get(stGroup.m_guiBaseColor);
+            if(iBaseMaterial >= 1)then
+                local mat = stGroup.m_aMainMaterials[iBaseMaterial - 1];
+                local iR, iG, iB, iA = ui.get(stGroup.m_guiBaseColor);
 
-            if(iBaseMaterial ~= 1)then
-                local flRRef, flGRef, flBRef, flARef = ui.get(stGroup.m_guiReflectivityColor);
-                flARef = flARef / 2.55;
+                if(iBaseMaterial ~= 1)then
+                    local flRRef, flGRef, flBRef, flARef = ui.get(stGroup.m_guiReflectivityColor);
+                    flARef = flARef / 2.55;
 
-				mat:set_shader_param("$pearlescentinput", ui.get(stGroup.m_guiPearlescent) * 0.5); 
-				mat:set_shader_param("$rimlightinput",   (ui.get(stGroup.m_guiRimlight) * 0.5)^2);
-				mat:set_shader_param("$phongr", flRRef * flARef);
-				mat:set_shader_param("$phongg", flGRef * flARef); 
-				mat:set_shader_param("$phongb", flBRef * flARef);
-                mat:set_shader_param("$phonga", flARef * ui.get(stGroup.m_guiReflectivity) * 0.01)
+                    mat:set_shader_param("$pearlescentinput", ui.get(stGroup.m_guiPearlescent)); 
+                    mat:set_shader_param("$rimlightinput",   (ui.get(stGroup.m_guiRimlight) * 0.5)^2);
+                    mat:set_shader_param("$phongr", flRRef * flARef);
+                    mat:set_shader_param("$phongg", flGRef * flARef); 
+                    mat:set_shader_param("$phongb", flBRef * flARef);
+                    mat:set_shader_param("$phonga", flARef * (ui.get(stGroup.m_guiReflectivity) * 0.01))
+                end
+                
+                mat:color_modulate(iR, iG, iB);
+                mat:alpha_modulate(iA * stGroup.m_flAlphaOverride);
+                mat:set_material_var_flag(28, aWireframe[1]);
             end
-            
-            mat:color_modulate(iR, iG, iB);
-			mat:alpha_modulate(iA * stGroup.m_flAlphaOverride);
-            mat:set_material_var_flag(28, aWireframe[1]);
-        end
 
-        if(iAnimMaterial >= 1)then
-            local mat = stGroup.m_aAnimatedMaterials[iAnimMaterial - 1];
-            local iR, iG, iB, iA = ui.get(stGroup.m_guiAnimatedColor);
+            if(iAnimMaterial >= 1)then
+                local mat = stGroup.m_aAnimatedMaterials[iAnimMaterial - 1];
+                local iR, iG, iB, iA = ui.get(stGroup.m_guiAnimatedColor);
 
-            mat:color_modulate(iR, iG, iB);
-			mat:alpha_modulate(iA * stGroup.m_flAlphaOverride);
-			mat:set_shader_param("$scaleinput", ui.get(stGroup.m_guiScale));
-			mat:set_shader_param("$angle", ui.get(stGroup.m_guiAngle));
-			mat:set_shader_param("$texturescrollangle", ui.get(stGroup.m_guiScroll));
-			mat:set_shader_param("$texturescrollinput", ui.get(stGroup.m_guiSpeed));
-            mat:set_material_var_flag(28, aWireframe[2]);
-        end
-    
-        if(bGlow)then
-            local mat = stGroup.m_materialGlow;
-            local iR, iG, iB, iA = ui.get(stGroup.m_guiGlow);
-    
-			mat:set_shader_param("$envmaptintr", iR);
-			mat:set_shader_param("$envmaptintg", iG);
-			mat:set_shader_param("$envmaptintb", iB);
-			mat:set_shader_param("$envmapfresnelbrightness", (iA / 2.55) * self.m_iGlowMultiplier * stGroup.m_flAlphaOverride);
-			mat:set_shader_param("$envmapfresnelfill", 100 - ui.get(stGroup.m_guiFill));
-            mat:set_material_var_flag(28, aWireframe[3]);
+                mat:color_modulate(iR, iG, iB);
+                mat:alpha_modulate(iA * stGroup.m_flAlphaOverride);
+                mat:set_shader_param("$scaleinput", ui.get(stGroup.m_guiScale));
+                mat:set_shader_param("$angle", ui.get(stGroup.m_guiAngle));
+                mat:set_shader_param("$texturescrollangle", ui.get(stGroup.m_guiScroll));
+                mat:set_shader_param("$texturescrollinput", ui.get(stGroup.m_guiSpeed));
+                mat:set_material_var_flag(28, aWireframe[2]);
+            end
+        
+            if(bGlow)then
+                local mat = stGroup.m_materialGlow;
+                local iR, iG, iB, iA = ui.get(stGroup.m_guiGlow);
+        
+                mat:set_shader_param("$envmaptintr", iR);
+                mat:set_shader_param("$envmaptintg", iG);
+                mat:set_shader_param("$envmaptintb", iB);
+                mat:set_shader_param("$envmapfresnelbrightness", (iA / 2.55) * self.m_iGlowMultiplier * stGroup.m_flAlphaOverride);
+                mat:set_shader_param("$envmapfresnelfill", 100 - ui.get(stGroup.m_guiFill));
+                mat:set_material_var_flag(28, aWireframe[3]);
+            end
+        end);
+
+        if(not bStatus)then
+            stGroup:Reload();
         end
     end;
 
@@ -644,15 +669,7 @@ client.set_event_callback("shutdown", function()
 
 
     for _, stGroup in pairs({UI.m_groupPlayer, UI.m_groupDesync, UI.m_groupAttachments, UI.m_groupMask, UI.m_groupArms, UI.m_groupSleeves, UI.m_groupWeapon}) do
-        for _, pMaterial in pairs(stGroup.m_aRawMainMaterials)do
-            pMaterial:DecrementReferenceCount();
-        end
-
-        for _, pMaterial in pairs(stGroup.m_aRawAnimatedMaterials)do
-            pMaterial:DecrementReferenceCount();
-        end
-
-        stGroup.m_pGlowMaterial:DecrementReferenceCount();
+        stGroup:Unload();
     end
 end);
 
@@ -706,8 +723,7 @@ local function OnDrawModel(sModel, pClientRenderable, bIsFake)
 
     IStudioRender:DrawModel();
 end 
--- STUDIORENDER_DRAW_NO_FLEXES STUDIORENDER_DRAW_NO_SHADOWS
---512
+
 client.delay_call(1, function()
     IStudioRender:StartHook(function(this, ecx, results, info, bones, flex_weights, flex_delayed_weights, model_origin, flags)
         -- Store the context.
@@ -723,3 +739,9 @@ client.delay_call(1, function()
         end
     end);
 end);
+
+ui.set_callback(UI.m_guiGroup, function()
+    UI:Organize(false);
+end);
+
+UI:Organize(false);
