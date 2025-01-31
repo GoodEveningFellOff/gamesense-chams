@@ -27,7 +27,7 @@ local EBaseMaterials = {
 };
 
 local EAnimatedMaterials = { 
-    ["Disabled"]          = 0;
+    ["Off"]               = 0;
     ["Tazer Beam"]        = 1; 
     ["Hemisphere Height"] = 2; 
     ["Zone Warning"]      = 3; 
@@ -237,7 +237,6 @@ local UI = {
     };
 
     m_guiGroup = ui.new_combobox(sTab, sContainer, "Group\nCHAMS", {"Hide", "Player", "Desync", "Arms", "Sleeves", "Weapon", "Attachments", "Mask"});
-    m_guiDesync = ui.new_checkbox(sTab, sContainer, "Local Fake\nCHAMS");
     m_guiTransparencyOptions = ui.new_multiselect(sTab, sContainer, "Transparency Options\nCHAMS", { "Scoped", "Grenades", "Interpolate" });
     m_guiSpacer = ui.new_label(sTab, sContainer, " \nCHAMS_SPACER");
 
@@ -270,11 +269,133 @@ local UI = {
     SetElementOverrides = function(self)
         ui.set(self.Visuals.Enable, false);
         ui.set(self.Visuals.Transparency, {});
-        ui.set(self.Visuals.Fake, ui.get(self.m_guiDesync));
+        ui.set(self.Visuals.Fake, true);
         ui.set(self.Visuals.Hands, false);
         ui.set(self.Visuals.Weapon, false);
     end;
 };
+
+local function RGBtoHSV(iR, iG, iB, iA)
+    local stReturned = {};
+
+    local flR, flG, flB = iR / 255, iG / 255, iB / 255;
+    local flMax, flMin = math.max(flR, flG, flB), math.min(flR, flG, flB);
+    local flDelta = flMax - flMin;
+
+
+    if(flDelta == 0)then
+        return { 0, ((flMax == 0) and 0 or (flDelta / flMax)), flMax, iA };
+
+    elseif(flMax == flR)then
+        return { 60 * (((flG - flB) / flDelta) % 6), ((flMax == 0) and 0 or (flDelta / flMax)), flMax, iA };
+    
+    elseif(flMax == flG)then
+        return { 60 * ((flB - flR) / flDelta + 2), ((flMax == 0) and 0 or (flDelta / flMax)), flMax, iA };
+
+    else
+        return { 60 * ((flR - flG) / flDelta + 4), ((flMax == 0) and 0 or (flDelta / flMax)), flMax, iA };
+    end
+end
+
+local function HSVtoRGB(flH, flS, flV, iA)
+    local flC = flV * flS;
+    local flX = flC * (1 - math.abs((flH / 60) % 2 - 1));
+    local flM = flV - flC;
+
+    if(flH >= 0 and flH < 60)then
+        return { math.floor((flC + flM) * 255), math.floor((flX + flM) * 255), math.floor(flM * 255), iA };
+
+    elseif(flH >= 60 and flH < 120)then
+        return { math.floor((flX + flM) * 255), math.floor((flC + flM) * 255), math.floor(flM * 255), iA };
+
+    elseif(flH >= 120 and flH < 180)then
+        return { math.floor(flM * 255), math.floor((flC + flM) * 255), math.floor((flX + flM) * 255), iA };
+    
+    elseif(flH >= 180 and flH < 240)then
+        return { math.floor(flM * 255), math.floor((flX + flM) * 255), math.floor((flC + flM) * 255), iA };
+
+    elseif(flH >= 240 and flH < 300)then
+        return { math.floor((flX + flM) * 255), math.floor(flM * 255), math.floor((flC + flM) * 255), iA };
+
+    else
+        return { math.floor((flC + flM) * 255), math.floor(flM * 255), math.floor((flX + flM) * 255), iA };
+
+    end
+end
+
+local ColorPicker = {
+    New = function(self, sTab, sContainer, sName, sNameHidden)
+        local class = { 
+            m_clr = { 255, 255, 255, 255 };
+            m_guiType = ui.new_combobox(sTab, sContainer, sName .. "\n" .. sNameHidden .. "\nColorPickerType", { "Normal", "Fade", "Rainbow" });
+            m_guiColor1 = ui.new_color_picker(sTab, sContainer, sName .. " Color1\n" ..  sNameHidden .. "\nColorPickerColor1", 255, 255, 255, 255);
+            m_guiColor2 = ui.new_color_picker(sTab, sContainer, sName .. " Color2\n" ..  sNameHidden .. "\nColorPickerColor2", 255, 255, 255, 255);
+            m_guiSpeed = ui.new_slider(sTab, sContainer, "\n" .. sName .. " Speed\n" ..  sNameHidden .. "\nColorPickerSpeed", 1, 500, 100, true, "%", 1);
+            m_guiOffset = ui.new_slider(sTab, sContainer, "\n" .. sName .. " Offset\n" ..  sNameHidden .. "\nColorPickerOffset", -100, 100, 0, true, "%", 1, {[0] = "Off"});
+            m_bIsVisible = true;
+        };
+        setmetatable(class, self);
+        self.__index = self;
+
+        ui.set_callback(class.m_guiType, function()
+            if(not class.m_bIsVisible)then
+                return;
+            end
+
+            local sType = ui.get(class.m_guiType);
+            ui.set_visible(class.m_guiColor2, sType == "Fade");
+            ui.set_visible(class.m_guiSpeed, sType ~= "Normal");
+            ui.set_visible(class.m_guiOffset, sType ~= "Normal");
+        end);
+
+        return class;
+    end;
+};
+do
+    function ColorPicker:Update()
+        local sType = ui.get(self.m_guiType);
+        if(sType == "Normal")then
+            self.m_clr = { ui.get(self.m_guiColor1) };
+            return;
+        end
+
+            
+        local flTime = globals.curtime() * ui.get(self.m_guiSpeed) * 0.3;
+        if(sType == "Rainbow")then
+            local aHSV = RGBtoHSV(ui.get(self.m_guiColor1));
+            self.m_clr = HSVtoRGB((flTime + ui.get(self.m_guiOffset) * 1.8) % 360, aHSV[2], aHSV[3], aHSV[4]);
+
+        else
+            local flSin = (math.sin(flTime / 10 + ui.get(self.m_guiOffset) * 0.01 * math.pi) / 2) + 0.5;
+            local aClrs = {{ ui.get(self.m_guiColor1) }, { ui.get(self.m_guiColor2) }};
+
+            for i = 1, 4 do
+                self.m_clr[i] = math.floor(aClrs[1][i] + (aClrs[2][i] - aClrs[1][i]) * flSin);
+            end
+            --self.m_clr = HSVtoRGB(aHSV1[1] + (aHSV2[1] - aHSV1[1]) * flSin, aHSV1[2] + (aHSV2[2] - aHSV1[2]) * flSin, aHSV1[3] + (aHSV2[3] - aHSV1[3]) * flSin, math.floor(aHSV1[4] + (aHSV2[4] - aHSV1[4]) * flSin));
+
+        end
+    end
+
+    function ColorPicker:Get()
+        return self.m_clr[1], self.m_clr[2], self.m_clr[3], self.m_clr[4];
+    end
+
+    function ColorPicker:SetVisible(bVisible)
+        if(self.m_bIsVisible == bVisible)then
+            return;
+        end
+
+        self.m_bIsVisible = bVisible;
+        local sType = ui.get(self.m_guiType);
+        ui.set_visible(self.m_guiType, bVisible);
+        ui.set_visible(self.m_guiColor1, bVisible);
+        ui.set_visible(self.m_guiColor2, bVisible and sType == "Fade");
+        ui.set_visible(self.m_guiSpeed, bVisible and sType ~= "Normal");
+        ui.set_visible(self.m_guiOffset, bVisible and sType ~= "Normal");
+    end
+end
+
 
 local function GenerateChamGroup(sConfigName, sMaterialPrefix, iGroup, bIsThirdPerson)
     local sTab = "LUA";     -- "VISUALS"
@@ -292,39 +413,118 @@ local function GenerateChamGroup(sConfigName, sMaterialPrefix, iGroup, bIsThirdP
     end
     
     stConfig.m_guiBaseMaterial = ui.new_combobox(sTab, sContainer, "Base Material\n" ..  sConfigName, aBaseMaterials);
-	stConfig.m_guiBaseColor = ui.new_color_picker(sTab, sContainer, "Base Color\n" .. sConfigName, 255, 255, 255, 255);
+    stConfig.m_clrBase = ColorPicker:New(sTab, sContainer, "\nBase Color", sConfigName);
     stConfig.m_guiPearlescent = ui.new_slider(sTab, sContainer, "Pearlescent\n" .. sConfigName, -100, 100, 0, true, "%", 1, {[0] = "Off"});
     stConfig.m_guiRimlight = ui.new_slider(sTab, sContainer, "Rimlight\n" .. sConfigName, 0, 100, 0, true, "%", 1, {[0] = "Off"});
     stConfig.m_guiReflectivity = ui.new_slider(sTab, sContainer, "Reflectivity\n" .. sConfigName, 0, 100, 0, true, "%", 1, {[0] = "Off"});
-    stConfig.m_guiReflectivityColor = ui.new_color_picker(sTab, sContainer, "Reflectivity Color\n" .. sConfigName, 255, 255, 255, 255);
+    stConfig.m_clrReflectivity = ColorPicker:New(sTab, sContainer, "\nReflectivity Color", sConfigName);
 	stConfig.m_guiSpacer1 = ui.new_label(sTab, sContainer, " \n1_" .. sConfigName);
 
     stConfig.m_guiAnimatedMaterial = ui.new_combobox(sTab, sContainer, "Animated Material\n" .. sConfigName, aAnimatedMaterials);
-	stConfig.m_guiAnimatedColor = ui.new_color_picker(sTab, sContainer, "Anim Color\n" .. sConfigName, 255, 255, 255, 255);
-	stConfig.m_guiScale = ui.new_slider(sTab, sContainer, "Texture Scale\n" .. sConfigName, 0, 1000, 100, true, "%", 1);
-	stConfig.m_guiAngle = ui.new_slider(sTab, sContainer, "Texture Angle\n" .. sConfigName, -180, 180, 0, true, "°", 1);
-	stConfig.m_guiScroll = ui.new_slider(sTab, sContainer, "Anim Angle\n" .. sConfigName, -180, 180, 0, true, "°", 1);
-	stConfig.m_guiSpeed = ui.new_slider(sTab, sContainer, "Anim Speed\n" .. sConfigName, 0, 500, 100, true, "%", 1);
+    stConfig.m_clrAnimated = ColorPicker:New(sTab, sContainer, "\nAnim Color", sConfigName);
+	stConfig.m_guiScale = ui.new_slider(sTab, sContainer, "Texture Scale / Angle\n" .. sConfigName, 0, 1000, 100, true, "%", 1);
+	stConfig.m_guiAngle = ui.new_slider(sTab, sContainer, "\nTexture Angle\n" .. sConfigName, -180, 180, 0, true, "°", 1);
+	stConfig.m_guiScroll = ui.new_slider(sTab, sContainer, "Animation Angle / Speed\n" .. sConfigName, -180, 180, 0, true, "°", 1);
+	stConfig.m_guiSpeed = ui.new_slider(sTab, sContainer, "\nAnimation Speed\n" .. sConfigName, 0, 500, 100, true, "%", 1);
 	stConfig.m_guiSpacer2 = ui.new_label(sTab, sContainer, " \n2_" .. sConfigName);
 	
-	stConfig.m_guiFill = ui.new_slider(sTab, sContainer, "Glow Fill\n" .. sConfigName, 0, 100, 0, true, "%", 1, {[0] = "Off"});
-    stConfig.m_guiGlow = ui.new_color_picker(sTab, sContainer, "Glow Color\n" .. sConfigName, 255, 255, 255, 255);
-    stConfig.m_guiWireframe = ui.new_multiselect(sTab, sContainer, "Wireframe\n" .. sConfigName, {"Base", "Animated", "Glow"});
+	stConfig.m_guiFill = ui.new_slider(sTab, sContainer, "Glow\n" .. sConfigName, 0, 100, 0, true, "%", 1, {[0] = "Off"});
+    stConfig.m_clrGlow = ColorPicker:New(sTab, sContainer, "\nGlow Color", sConfigName);
     stConfig.m_guiSpacer3 = ui.new_label(sTab, sContainer, " \n3_" .. sConfigName);
 
-    stConfig.m_guiTransparencyPercent = ui.new_slider(sTab, sContainer, "Transparency Percent\n" .. sConfigName, 0, 100, 0, true, "%", 1);
-    stConfig.m_guiTransparencyOriginal = ui.new_checkbox(sTab, sContainer, "Use Original\n" .. sConfigName);
-    
-    stConfig.m_flAlphaOverride = 1;
+    stConfig.m_guiWireframe = ui.new_multiselect(sTab, sContainer, "Wireframe\n" .. sConfigName, {"Base", "Animated", "Glow"});
+    stConfig.m_guiTransparencyLabel = ui.new_label(sTab, sContainer, "Transparency\n" .. sConfigName);
+
+    stConfig.m_guiTransparencyBase = ui.new_slider(sTab, sContainer, "\nTransparency Base" .. sConfigName, 0, 100, 0, true, "%", 1);
+    stConfig.m_guiTransparencyAnim = ui.new_slider(sTab, sContainer, "\nTransparency Animated" .. sConfigName, 0, 100, 0, true, "%", 1);
+    stConfig.m_guiTransparencyGlow = ui.new_slider(sTab, sContainer, "\nTransparency Glow" .. sConfigName, 0, 100, 0, true, "%", 1);
+    stConfig.m_guiTransparencyOriginal = ui.new_checkbox(sTab, sContainer, "Draw Original Base\n" .. sConfigName);
+
+    stConfig.m_flBaseAlphaOverride = 1;
+    stConfig.m_flAnimAlphaOverride = 1;
+    stConfig.m_flGlowAlphaOverride = 1;
 
     stConfig.m_bIsThirdPerson = bIsThirdPerson;
 	stConfig.m_bIsVisible = true;
-    stConfig.m_bIsDisabled = false;
+    stConfig.m_bBaseIsDisabled = false;
+    stConfig.m_bAnimIsDisabled = false;
+    stConfig.m_bGlowIsDisabled = false;
     stConfig.m_sGroup = tostring(iGroup);
     stConfig.m_aMainMaterials = {};
     stConfig.m_aRawMainMaterials = {};
     stConfig.m_aAnimatedMaterials = {};
     stConfig.m_aRawAnimatedMaterials = {};
+
+    function stConfig:SetTransparencyVisible()
+        for _, v in pairs(ui.get(UI.m_guiTransparencyOptions)) do
+            if(v == "Scoped" or v == "Grenades")then
+                ui.set_visible(self.m_guiTransparencyLabel, self.m_bIsVisible and (EBaseMaterials[ui.get(self.m_guiBaseMaterial)] - 1 ~= 0 or EAnimatedMaterials[ui.get(self.m_guiAnimatedMaterial)] > 0 or ui.get(self.m_guiFill) > 0));
+                ui.set_visible(self.m_guiTransparencyAnim, self.m_bIsVisible and EAnimatedMaterials[ui.get(self.m_guiAnimatedMaterial)] > 0);
+                ui.set_visible(self.m_guiTransparencyGlow, self.m_bIsVisible and ui.get(self.m_guiFill) > 0);
+
+                if(self.m_bIsVisible and EBaseMaterials[ui.get(stConfig.m_guiBaseMaterial)] ~= 1)then
+                    ui.set_visible(self.m_guiTransparencyBase, true);
+                    ui.set_visible(self.m_guiTransparencyOriginal, true);
+                else
+                    ui.set_visible(self.m_guiTransparencyBase, false);
+                    ui.set_visible(self.m_guiTransparencyOriginal, false);
+                end
+                
+                return;
+            end
+        end
+        
+        ui.set_visible(self.m_guiTransparencyLabel, false);
+        ui.set_visible(self.m_guiTransparencyBase, false);
+        ui.set_visible(self.m_guiTransparencyAnim, false);
+        ui.set_visible(self.m_guiTransparencyGlow, false);
+        ui.set_visible(self.m_guiTransparencyOriginal, false);
+    end
+
+    local function SetWireframeVisible()
+        ui.set_visible(stConfig.m_guiWireframe, stConfig.m_bIsVisible and (EBaseMaterials[ui.get(stConfig.m_guiBaseMaterial)] - 1 > 1 or EAnimatedMaterials[ui.get(stConfig.m_guiAnimatedMaterial)] > 0 or ui.get(stConfig.m_guiFill) > 0));
+        stConfig:SetTransparencyVisible();
+    end
+
+    local function SetBaseVisible()
+        local iBaseType = EBaseMaterials[ui.get(stConfig.m_guiBaseMaterial)] - 1;
+        stConfig.m_clrBase:SetVisible(stConfig.m_bIsVisible and iBaseType > 0);
+        ui.set_visible(stConfig.m_guiPearlescent, stConfig.m_bIsVisible and iBaseType == 2);
+        ui.set_visible(stConfig.m_guiRimlight, stConfig.m_bIsVisible and iBaseType == 2);
+        ui.set_visible(stConfig.m_guiReflectivity, stConfig.m_bIsVisible and iBaseType > 1);
+        stConfig.m_clrReflectivity:SetVisible(stConfig.m_bIsVisible and iBaseType > 1 and ui.get(stConfig.m_guiReflectivity) ~= 0);
+
+        SetWireframeVisible();
+    end
+
+    local function SetAnimatedVisible()
+        local bAnimatedVisible = stConfig.m_bIsVisible and EAnimatedMaterials[ui.get(stConfig.m_guiAnimatedMaterial)] > 0;
+        stConfig.m_clrAnimated:SetVisible(bAnimatedVisible);
+        ui.set_visible(stConfig.m_guiScale, bAnimatedVisible);
+        ui.set_visible(stConfig.m_guiAngle, bAnimatedVisible);
+        ui.set_visible(stConfig.m_guiScroll, bAnimatedVisible);
+        ui.set_visible(stConfig.m_guiSpeed, bAnimatedVisible);
+        ui.set_visible(stConfig.m_guiTransparencyAnim, bAnimatedVisible);
+
+        SetWireframeVisible();
+    end
+
+    local function SetGlowVisible()
+        stConfig.m_clrGlow:SetVisible(stConfig.m_bIsVisible and ui.get(stConfig.m_guiFill) > 0);
+        
+        SetWireframeVisible();
+    end
+    
+    ui.set_callback(stConfig.m_guiBaseMaterial, SetBaseVisible);
+    ui.set_callback(stConfig.m_guiReflectivity, function()
+        stConfig.m_clrReflectivity:SetVisible(stConfig.m_bIsVisible and EBaseMaterials[ui.get(stConfig.m_guiBaseMaterial)] - 1 > 1 and ui.get(stConfig.m_guiReflectivity) ~= 0);
+    end);
+    ui.set_callback(stConfig.m_guiAnimatedMaterial, SetAnimatedVisible);
+    ui.set_callback(stConfig.m_guiFill, SetGlowVisible);
+
+    SetBaseVisible();
+    SetAnimatedVisible();
+    SetGlowVisible();
 
     function stConfig:SetVisible(bVisible)
         if(self.m_bIsVisible == bVisible)then
@@ -332,11 +532,14 @@ local function GenerateChamGroup(sConfigName, sMaterialPrefix, iGroup, bIsThirdP
         end
 
         self.m_bIsVisible = bVisible;
-        for k, v in pairs(self) do
-            if(tostring(k):find("m_gui"))then
-                ui.set_visible(v, bVisible);
-            end
+        for _, v in pairs({self.m_guiBaseMaterial, self.m_guiSpacer1, self.m_guiAnimatedMaterial, self.m_guiSpacer2, self.m_guiFill, self.m_guiSpacer3, self.m_guiSpacer3}) do
+            ui.set_visible(v, bVisible);
         end
+
+        SetBaseVisible();
+        SetAnimatedVisible();
+        SetGlowVisible();
+        SetWireframeVisible();
 	end;
 
     function stConfig:Unload()
@@ -419,6 +622,10 @@ local g_MaterialOverride = {
             return;
         end
 
+        for _, stGroup in pairs({UI.m_groupPlayer, UI.m_groupDesync, UI.m_groupAttachments, UI.m_groupMask}) do
+            stGroup:Reload();
+        end
+
         self.m_iGlowMultiplier = IEngineClient:IsHdrEnabled() and 1 or 15;
     end;
 
@@ -468,15 +675,22 @@ local g_MaterialOverride = {
                 end
             end
 
-            stGroup.m_flAlphaOverride = 1 + (1 - ui.get(stGroup.m_guiTransparencyPercent) / 100 - 1) * self.m_flAlphaPercent;
-            stGroup.m_bIsDisabled = (iBaseMaterial == -1 and iAnimMaterial == 0 and not bGlow) or (self.m_flAlphaPercent > 0.5 and ui.get(stGroup.m_guiTransparencyOriginal));
+            stGroup.m_flBaseAlphaOverride = 1 + (1 - ui.get(stGroup.m_guiTransparencyBase) / 100 - 1) * self.m_flAlphaPercent;
+            stGroup.m_flAnimAlphaOverride = 1 + (1 - ui.get(stGroup.m_guiTransparencyAnim) / 100 - 1) * self.m_flAlphaPercent;
+            stGroup.m_flGlowAlphaOverride = 1 + (1 - ui.get(stGroup.m_guiTransparencyGlow) / 100 - 1) * self.m_flAlphaPercent;
+
+            stGroup.m_bBaseIsDisabled = (iBaseMaterial == -1) or (self.m_flAlphaPercent > 0.5 and ui.get(stGroup.m_guiTransparencyOriginal));
+            stGroup.m_bAnimIsDisabled = (iAnimMaterial == 0) or (stGroup.m_flAnimAlphaOverride == 0);
+            stGroup.m_bGlowIsDisabled = (not bGlow) or (stGroup.m_flGlowAlphaOverride == 0);
 
             if(iBaseMaterial >= 1)then
                 local mat = stGroup.m_aMainMaterials[iBaseMaterial - 1];
-                local iR, iG, iB, iA = ui.get(stGroup.m_guiBaseColor);
+                stGroup.m_clrBase:Update();
+                local iR, iG, iB, iA = stGroup.m_clrBase:Get();
 
                 if(iBaseMaterial ~= 1)then
-                    local flRRef, flGRef, flBRef, flARef = ui.get(stGroup.m_guiReflectivityColor);
+                    stGroup.m_clrReflectivity:Update();
+                    local flRRef, flGRef, flBRef, flARef = stGroup.m_clrReflectivity:Get();
                     flARef = flARef / 2.55;
 
                     mat:set_shader_param("$pearlescentinput", ui.get(stGroup.m_guiPearlescent)); 
@@ -488,16 +702,17 @@ local g_MaterialOverride = {
                 end
                 
                 mat:color_modulate(iR, iG, iB);
-                mat:alpha_modulate(iA * stGroup.m_flAlphaOverride);
+                mat:alpha_modulate(iA * stGroup.m_flBaseAlphaOverride);
                 mat:set_material_var_flag(28, aWireframe[1]);
             end
 
             if(iAnimMaterial >= 1)then
                 local mat = stGroup.m_aAnimatedMaterials[iAnimMaterial - 1];
-                local iR, iG, iB, iA = ui.get(stGroup.m_guiAnimatedColor);
+                stGroup.m_clrAnimated:Update();
+                local iR, iG, iB, iA = stGroup.m_clrAnimated:Get();
 
                 mat:color_modulate(iR, iG, iB);
-                mat:alpha_modulate(iA * stGroup.m_flAlphaOverride);
+                mat:alpha_modulate(iA * stGroup.m_flAnimAlphaOverride);
                 mat:set_shader_param("$scaleinput", ui.get(stGroup.m_guiScale));
                 mat:set_shader_param("$angle", ui.get(stGroup.m_guiAngle));
                 mat:set_shader_param("$texturescrollangle", ui.get(stGroup.m_guiScroll));
@@ -507,12 +722,13 @@ local g_MaterialOverride = {
         
             if(bGlow)then
                 local mat = stGroup.m_materialGlow;
-                local iR, iG, iB, iA = ui.get(stGroup.m_guiGlow);
+                stGroup.m_clrGlow:Update();
+                local iR, iG, iB, iA = stGroup.m_clrGlow:Get();
         
                 mat:set_shader_param("$envmaptintr", iR);
                 mat:set_shader_param("$envmaptintg", iG);
                 mat:set_shader_param("$envmaptintb", iB);
-                mat:set_shader_param("$envmapfresnelbrightness", (iA / 2.55) * self.m_iGlowMultiplier * stGroup.m_flAlphaOverride);
+                mat:set_shader_param("$envmapfresnelbrightness", (iA / 2.55) * self.m_iGlowMultiplier * stGroup.m_flGlowAlphaOverride);
                 mat:set_shader_param("$envmapfresnelfill", 100 - ui.get(stGroup.m_guiFill));
                 mat:set_material_var_flag(28, aWireframe[3]);
             end
@@ -541,24 +757,26 @@ local g_MaterialOverride = {
             self:OnFrameEnd();
         end
 
-        if(bDisable or stGroup.m_bIsDisabled)then
-            IStudioRender:SetAlphaModulation(stGroup.m_flAlphaOverride);
+        if(bDisable or (stGroup.m_bBaseIsDisabled and stGroup.m_bAnimIsDisabled and stGroup.m_bGlowIsDisabled))then
+            IStudioRender:SetAlphaModulation(stGroup.m_flBaseAlphaOverride);
             IStudioRender:DrawModel();
             return;
         end
 
         local iBaseMaterial = EBaseMaterials[ui.get(stGroup.m_guiBaseMaterial)] - 1;
-        if(iBaseMaterial < 1)then
+        if(stGroup.m_bBaseIsDisabled)then
+            IStudioRender:SetAlphaModulation(stGroup.m_flBaseAlphaOverride);
+            IStudioRender:DrawModel();
+
+        elseif(iBaseMaterial < 1)then
             if(iBaseMaterial == -1)then
-                IStudioRender:SetAlphaModulation(stGroup.m_flAlphaOverride);
+                IStudioRender:SetAlphaModulation(stGroup.m_flBaseAlphaOverride);
                 IStudioRender:DrawModel();
             end
 
         else
-
-            
             if(iBaseMaterial == 1)then
-                IStudioRender:SetAlphaModulation(({ui.get(stGroup.m_guiBaseColor)})[4] / 255 * stGroup.m_flAlphaOverride);
+                IStudioRender:SetAlphaModulation(stGroup.m_clrBase.m_clr[4] / 255 * stGroup.m_flBaseAlphaOverride);
                 IStudioRender:DrawModel();
             end
 
@@ -567,12 +785,12 @@ local g_MaterialOverride = {
         end
 
         local iAnimMaterial = EAnimatedMaterials[ui.get(stGroup.m_guiAnimatedMaterial)];
-        if(iAnimMaterial >= 1)then
+        if(not stGroup.m_bAnimIsDisabled)then
             IStudioRender:SetAlphaModulation(1);
             IStudioRender:ForcedMaterialOverride(stGroup.m_aRawAnimatedMaterials[iAnimMaterial - 1][0]);
         end
     
-        if(ui.get(stGroup.m_guiFill) > 0)then
+        if(not stGroup.m_bGlowIsDisabled)then
             IStudioRender:SetAlphaModulation(1);
             IStudioRender:ForcedMaterialOverride(stGroup.m_pGlowMaterial[0]);
         end
@@ -595,7 +813,7 @@ for i = 1, g_iFrames do
 end
 
 -->> Create Callbacks <<
-client.set_event_callback("paint", function()
+client.set_event_callback("paint_ui", function()
     local iFrame = (globals.framecount() + 1) % g_iFrames + 1;
     if(ui.is_menu_open())then
         UI:Organize(false);
@@ -744,4 +962,20 @@ ui.set_callback(UI.m_guiGroup, function()
     UI:Organize(false);
 end);
 
+ui.set_callback(UI.m_guiTransparencyOptions, function()
+    for _, stGroup in pairs({UI.m_groupPlayer, UI.m_groupDesync, UI.m_groupAttachments, UI.m_groupMask, UI.m_groupArms, UI.m_groupSleeves, UI.m_groupWeapon}) do
+        stGroup:SetTransparencyVisible();
+    end
+end);
+
 UI:Organize(false);
+
+client.delay_call(0.1, function()
+    ui.set(UI.m_guiGroup, "Hide");
+end);
+
+client.set_event_callback("post_config_load", function() 
+    client.delay_call(0.1, function()
+        ui.set(UI.m_guiGroup, "Hide");
+    end);
+end);
