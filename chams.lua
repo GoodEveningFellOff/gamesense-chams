@@ -1,8 +1,3 @@
---[[
-    Created by: Good.Evening#3081
-    Source: https://raw.githubusercontent.com/GoodEveningFellOff/gamesense-chams/main/chams.lua
-]]
-
 local ffi = require("ffi");
 local bit = require("bit");
 ffi.cdef([[
@@ -46,48 +41,83 @@ local EWeaponTypes = {
     ["CWeaponAug"] = 2;
 };
 
+local function InitMaterialFiles(iGroup)
+    local function TryReadThenWrite(sFile, sData)
+        local sCurrentData = readfile(sFile);
+        if(sCurrentData == sData)then
+            return;
+        end
+
+        writefile(sFile, sData);
+    end
+
+    local sPath = "csgo/materials/custom_chams/" .. tostring(iGroup) .. "_";
+    for i, sBaseTexture in pairs({ 
+        [0] = "\"particle/beam_taser\"";
+        [1] = "\"dev/hemisphere_normal\"";
+        [2] = "\"dev/zone_warning\"";
+        [3] = "\"particle/bendibeam\"";
+        [4] = "\"models/inventory_items/dreamhack_trophies/dreamhack_star_blur\"";
+    }) do
+        TryReadThenWrite(sPath .. "animated_" .. tostring(i) .. ".vmt", "\"UnlitGeneric\" { \n"  .. "\t\"$basetexture\" " .. sBaseTexture .. "\n\t\"$color\" \"[1 1 1]\"\n\t\"$alpha\" \"1\"\n\t\"$additive\" \"1\"\n\t\"$selfillum\" \"1\"\n\t\"$wireframe\" \"1\"\n\t\"$ignorez\" \"0\"\n\t\"$translate\" \"[0.0 0.0]\"\n\t\"$angle\" \"90\"\n\t\"$centervar\" \"[-0.5 -0.5]\"\n\t\"$scalevar\" \"[1.0 1.0]\"\n\t\"$scaleinput\" \"100\"\n\t\"$texturescrollrate\" \"0.25\"\n\t\"$texturescrollangle\" \"180\"\n\t\"$texturescrollinput\" \"25\"\n\t\"$devidebyonehundred\" \"100\"\n\t\"Proxies\"\n\t{\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$scaleinput\"\n\t\t\t\"srcVar2\" \"$devidebyonehundred\"\n\t\t\t\"resultVar\" \"$scalevar[0]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$scaleinput\"\n\t\t\t\"srcVar2\" \"$devidebyonehundred\"\n\t\t\t\"resultVar\" \"$scalevar[1]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$texturescrollinput\"\n\t\t\t\"srcVar2\" \"$devidebyonehundred\"\n\t\t\t\"resultVar\" \"$texturescrollrate\"\n\t\t}\n\t\t\"TextureScroll\"\n\t\t{\n\t\t\t\"textureScrollVar\" \"$translate\"\n\t\t\t\"textureScrollRate\" \"$texturescrollrate\"\n\t\t\t\"textureScrollAngle\" \"$texturescrollangle\"\n\t\t}\n\t\t\"TextureTransform\"\n\t\t{\n\t\t\t\"translateVar\" \"$translate\"\n\t\t\t\"scalevar\" \"$scalevar\"\n\t\t\t\"rotateVar\" \"$angle\"\n\t\t\t\"centerVar\" \"$centervar\"\n\t\t\t\"resultVar\" \"$basetexturetransform\"\n\t\t}\n\t}\n}");
+    end
+
+    TryReadThenWrite(sPath .. "glow.vmt", "\"VertexLitGeneric\" {\n\t\"$additive\" \"1\"\n\t\"$envmap\" \"models/effects/cube_white\"\n\t\"$envmaptint\" \"[1.0 1.0 1.0]\"\n\t\"$envmaptintr\" \"255\"\n\t\"$envmaptintr\" \"255\"\n\t\"$envmaptintg\" \"0\"\n\t\"$envmaptintb\" \"0\"\n\t\"$envmaptintmod\" \"255\"\n\t\"$envmapfresnel\" \"1\"\n\t\"$envmapfresnelminmaxexp\" \"[0 1 2]\"\n\t\"$envmapfresnelbrightnessdiv\" \"500\"\n\t\"$envmapfresnelbrightness\" \"1\"\n\t\"$envmapfresnelfilldiv\" \"4\"\n\t\"$envmapfresnelfill\" \"1\"\n\t\"$selfillum\" \"1\"\n\t\"$wireframe\" \"0\"\n\t\"$ignorez\" \"0\"\n\t\"Proxies\"\n\t{\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmaptintr\"\n\t\t\t\"srcVar2\" \"$envmaptintmod\"\n\t\t\t\"resultVar\" \"$envmaptint[0]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmaptintg\"\n\t\t\t\"srcVar2\" \"$envmaptintmod\"\n\t\t\t\"resultVar\" \"$envmaptint[1]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmaptintb\"\n\t\t\t\"srcVar2\" \"$envmaptintmod\"\n\t\t\t\"resultVar\" \"$envmaptint[2]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmaptintb\"\n\t\t\t\"srcVar2\" \"$envmaptintmod\"\n\t\t\t\"resultVar\" \"$envmaptint[2]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmapfresnelbrightness\"\n\t\t\t\"srcVar2\" \"$envmapfresnelbrightnessdiv\"\n\t\t\t\"resultVar\" \"$envmapfresnelminmaxexp[1]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmapfresnelfill\"\n\t\t\t\"srcVar2\" \"$envmapfresnelfilldiv\"\n\t\t\t\"resultVar\" \"$envmapfresnelminmaxexp[2]\"\n\t\t}\n\t}\n}");
+    TryReadThenWrite(sPath .. "modulate.vmt", "\"Modulate\" {\n\t\"$basetexture\" \"VGUI/white_additive\"\n\t\"$color\" \"[1 1 1]\"\n\t\"$nofog\" \"1\"\n\t\"$mod2x\" \"1\"\n\t\"$phonginput\" \"0\"\n\t\"$pearlescentinput\" \"0\"\n\t\"$alpha\" \"1\"\n\t\"$rimlightinput\" \"0\"\n}");
+    TryReadThenWrite(sPath .. "unlitgeneric.vmt", "\"UnlitGeneric\" {\n\t\"$basetexture\" \"VGUI/white_additive\"\n\t\"$color\" \"[1 1 1]\"\n\t\"$nofog\" \"1\"\n\t\"$envmap\" \"env_cubemap\"\n\t\"$basemapalphaphongmask\" \"1\"\n\t\"$phonginput\" \"0\"\n\t\"$phongr\" \"0\"\n\t\"$phongg\" \"0\"\n\t\"$phongb\" \"0\"\n\t\"$phonga\" \"0\"\n\t\"$pearlescentinput\" \"0\"\n\t\"$twofivefivesquared\" \"65025\"\n\t\"$alpha\" \"1\"\n\t\"$selfillum\" \"1\"\n\t\"$envmaptint\" \"[0 0 0]\"\n\t\"$rimlightinput\" \"0\"\n\t\"Proxies\"\n\t{\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phonga\"\n\t\t\t\"srcVar2\" \"$twofivefivesquared\"\n\t\t\t\"resultVar\" \"$phonginput\"\n\t\t}\n\t\t\"Multiply\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongr\"\n\t\t\t\"srcVar2\" \"$phonginput\"\n\t\t\t\"resultVar\" \"$envmaptint[0]\"\n\t\t}\n\t\t\"Multiply\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongg\"\n\t\t\t\"srcVar2\" \"$phonginput\"\n\t\t\t\"resultVar\" \"$envmaptint[1]\"\n\t\t}\n\t\t\"Multiply\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongb\"\n\t\t\t\"srcVar2\" \"$phonginput\"\n\t\t\t\"resultVar\" \"$envmaptint[2]\"\n\t\t}\n\t}\n}");
+    TryReadThenWrite(sPath .. "vertexlit.vmt", "\"VertexLitGeneric\" {\n\t\"$basetexture\" \"VGUI/white_additive\"\n\t\"$color\" \"[1 1 1]\"\n\t\"$nofog\" \"1\"\n\t\"$envmap\" \"env_cubemap\"\n\t\"$phong\" \"1\"\n\t\"$basemapalphaphongmask\" \"1\"\n\t\"$phongboost\" \"0\"\n\t\"$phonginput\" \"0\"\n\t\"$phongr\" \"0\"\n\t\"$phongg\" \"0\"\n\t\"$phongb\" \"0\"\n\t\"$phonga\" \"0\"\n\t\"$rimlight\" \"1\"\n\t\"$rimlightexponent\" \"9999999\"\n\t\"$rimlightboost\" \"0\"\n\t\"$pearlescent\" \"0\"\n\t\"$pearlescentinput\" \"0\"\n\t\"$ten\" \"10\"\n\t\"$twofivefive\" \"255\"\n\t\"$twofivefivesquared\" \"65025\"\n\t\"$alpha\" \"1\"\n\t\"$selfillum\" \"1\"\n\t\"$envmaptint\" \"[0 0 0]\"\n\t\"$phongtint\" \"[1 1 1]\"\n\t\"$rimlightinput\" \"0\"\n\t\"Proxies\"\n\t{\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$pearlescentinput\"\n\t\t\t\"srcVar2\" \"$ten\"\n\t\t\t\"resultVar\" \"$pearlescent\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$rimlightinput\"\n\t\t\t\"srcVar2\" \"$ten\"\n\t\t\t\"resultVar\" \"$rimlightboost\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phonga\"\n\t\t\t\"srcVar2\" \"$twofivefivesquared\"\n\t\t\t\"resultVar\" \"$phonginput\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phonga\"\n\t\t\t\"srcVar2\" \"$ten\"\n\t\t\t\"resultVar\" \"$phongboost\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongr\"\n\t\t\t\"srcVar2\" \"$twofivefive\"\n\t\t\t\"resultVar\" \"$phongtint[0]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongg\"\n\t\t\t\"srcVar2\" \"$twofivefive\"\n\t\t\t\"resultVar\" \"$phongtint[1]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongb\"\n\t\t\t\"srcVar2\" \"$twofivefive\"\n\t\t\t\"resultVar\" \"$phongtint[2]\"\n\t\t}\n\t\t\"Multiply\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongr\"\n\t\t\t\"srcVar2\" \"$phonginput\"\n\t\t\t\"resultVar\" \"$envmaptint[0]\"\n\t\t}\n\t\t\"Multiply\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongg\"\n\t\t\t\"srcVar2\" \"$phonginput\"\n\t\t\t\"resultVar\" \"$envmaptint[1]\"\n\t\t}\n\t\t\"Multiply\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongb\"\n\t\t\t\"srcVar2\" \"$phonginput\"\n\t\t\t\"resultVar\" \"$envmaptint[2]\"\n\t\t}\n\t}\n}");
+end
+
+for i = 1, 4 do
+    InitMaterialFiles(i);
+end
+
+local function SpoofCall(...) end
+local function GetModuleProc(...) end
 local function WritePointerToAddress(...) end
 do
     local pTrampoline = client.find_signature("client.dll", "\x51\xC3")
+    function SpoofCall(T, fn, ...)
+        return ffi.cast(T, pTrampoline)(fn, ...);
+    end
+
+    local fnGetModuleHandle = ffi.cast("void***", ffi.cast("uintptr_t", client.find_signature("client.dll", "\xC6\x06\x00\xFF\x15\xCC\xCC\xCC\xCC\x50")) + 5)[0][0];
+    local fnGetProcAddress = ffi.cast("void***", ffi.cast("char*", client.find_signature("client.dll", "\x50\xFF\x15\xCC\xCC\xCC\xCC\x85\xC0\x0F\x84\xCC\xCC\xCC\xCC\x6A\x00")) + 3)[0][0];
+
+    function GetModuleProc(sModule, sProc)
+        local pModule = SpoofCall("uintptr_t(__thiscall*)(void*, const char*)", fnGetModuleHandle, sModule);
+        if((pModule or 0) == 0)then
+            return;
+        end
+
+        return SpoofCall("uintptr_t(__thiscall*)(void*, uintptr_t, const char*)", fnGetProcAddress, pModule, sProc);
+    end
 
     -- Address to the virtual protect function.
-    local fnVirtualProtect = ffi.cast("uintptr_t (__thiscall*)(void*, uintptr_t, const char*)", pTrampoline)(
-        ffi.cast("void***", ffi.cast("char*", client.find_signature("client.dll", "\x50\xFF\x15\xCC\xCC\xCC\xCC\x85\xC0\x0F\x84\xCC\xCC\xCC\xCC\x6A\x00")) + 3)[0][0],
-        ffi.cast("uintptr_t(__thiscall*)(void*, const char*)", pTrampoline)(
-            ffi.cast("void***", ffi.cast("uintptr_t", client.find_signature("client.dll", "\xC6\x06\x00\xFF\x15\xCC\xCC\xCC\xCC\x50")) + 5)[0][0], 
-            "kernel32.dll"
-        ), --> Returns Kernel32.dll base address <
-        "VirtualProtect"
-    ); --> Returns VirtualProtect Memoryapi address <
-
-    -- We will call it with our trampoline so we prepare it by casting it to the virtual protect function type.
-    pTrampoline = ffi.cast("uintptr_t (__thiscall*)(uintptr_t, void*, uintptr_t, uintptr_t, uintptr_t*)", pTrampoline);
-
+    local fnVirtualProtect = GetModuleProc("kernel32.dll", "VirtualProtect");
     function WritePointerToAddress(lpAddress, lpValue)
         local lpflOldProtect = ffi.new("unsigned long[1]");
-        pTrampoline(fnVirtualProtect, lpAddress, 4, 0x4, lpflOldProtect);
+        ffi.cast("uintptr_t (__thiscall*)(uintptr_t, void*, uintptr_t, uintptr_t, uintptr_t*)", pTrampoline)(fnVirtualProtect, lpAddress, 4, 0x4, lpflOldProtect);
         lpAddress[0] = ffi.cast("void*", lpValue);
-        pTrampoline(fnVirtualProtect, lpAddress, 4, 0x4, lpflOldProtect);
+        ffi.cast("uintptr_t (__thiscall*)(uintptr_t, void*, uintptr_t, uintptr_t, uintptr_t*)", pTrampoline)(fnVirtualProtect, lpAddress, 4, lpflOldProtect[0], lpflOldProtect);
     end
 end
 
--- Engine client interface, used to fix glow on hdr disabled maps.
 local IEngineClient = {
     m_pInterface = ffi.cast(ffi.typeof("void***"), client.create_interface("engine.dll", "VEngineClient014"));
 };
-do
-    fnIsHdrEnabled = ffi.cast("bool(__thiscall*)(void*)", IEngineClient.m_pInterface[0][109]);
+do -- IEngineClient // START
+    local fnIsHdrEnabled = ffi.cast("bool(__thiscall*)(void*)", IEngineClient.m_pInterface[0][109]);
     function IEngineClient:IsHdrEnabled()
         return fnIsHdrEnabled(self.m_pInterface);
     end
-end
+end -- IEngineClient // END
 
--- Studio render interface, used for the draw model hook along with modulation and rendering of materials.
 local IStudioRender = {
     m_pInterface = ffi.cast("void***", client.create_interface("studiorender.dll", "VStudioRender026"));
     m_aDrawModelContext = {};
 };
-do
+do -- IStudioRender // START
     function IStudioRender:StartHook(fnDetour)
         local T = "void (__fastcall*)(void*, void*, void*, const DrawModelInfo_t&, void*, float*, float*, float[3], const int32_t)";
         
@@ -125,7 +155,7 @@ do
         fnForcedMaterialOverride(self.m_pInterface, ffi.cast("void*", mat), 0, -1);
         self:DrawModel();
     end
-end
+end -- IStudioRender // END
 
 
 local IClientRenderable  = {
@@ -218,7 +248,7 @@ local IMaterialSystem = {
     m_pInterface = ffi.cast("void***", client.create_interface("materialsystem.dll", "VMaterialSystem080"));
 };
 do -- IMaterialsSystem // START
-    local fnFindMaterial = ffi.cast("void* (__thiscall*)(void*, const char*, const char*, bool, const char*)", IMaterialSystem.m_pInterface[0][84]);
+    local fnFindMaterial = ffi.cast("void*(__thiscall*)(void*, const char*, const char*, bool, const char*)", IMaterialSystem.m_pInterface[0][84]);
     function IMaterialSystem:FindMaterial(sName)
         return IMaterial:New(fnFindMaterial(self.m_pInterface, sName, "", true, ""));
     end
@@ -562,13 +592,13 @@ local function GenerateChamGroup(sConfigName, sMaterialPrefix, iGroup, bIsThirdP
             [1] = materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_vertexlit.vmt", true);
             [2] = materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_unlitgeneric.vmt", true);
         };
-    
+
         self.m_aRawMainMaterials = {
             [0] = IMaterialSystem:FindMaterial("custom_chams/" .. self.m_sGroup .. "_modulate.vmt");
             [1] = IMaterialSystem:FindMaterial("custom_chams/" .. self.m_sGroup .. "_vertexlit.vmt");
             [2] = IMaterialSystem:FindMaterial("custom_chams/" .. self.m_sGroup .. "_unlitgeneric.vmt");
         };
-
+    
         for k, v in pairs(self.m_aRawMainMaterials) do
             v:IncrementReferenceCount();
         end
