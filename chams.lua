@@ -51,7 +51,7 @@ local function InitMaterialFiles(iGroup)
         writefile(sFile, sData);
     end
 
-    local sPath = "csgo/materials/custom_chams/" .. tostring(iGroup) .. "_";
+    local sPath = "csgo/materials/" .. tostring(iGroup) .. "_";
     for i, sBaseTexture in pairs({ 
         [0] = "\"particle/beam_taser\"";
         [1] = "\"dev/hemisphere_normal\"";
@@ -62,7 +62,7 @@ local function InitMaterialFiles(iGroup)
         TryReadThenWrite(sPath .. "animated_" .. tostring(i) .. ".vmt", "\"UnlitGeneric\" { \n"  .. "\t\"$basetexture\" " .. sBaseTexture .. "\n\t\"$color\" \"[1 1 1]\"\n\t\"$alpha\" \"1\"\n\t\"$additive\" \"1\"\n\t\"$selfillum\" \"1\"\n\t\"$wireframe\" \"1\"\n\t\"$ignorez\" \"0\"\n\t\"$translate\" \"[0.0 0.0]\"\n\t\"$angle\" \"90\"\n\t\"$centervar\" \"[-0.5 -0.5]\"\n\t\"$scalevar\" \"[1.0 1.0]\"\n\t\"$scaleinput\" \"100\"\n\t\"$texturescrollrate\" \"0.25\"\n\t\"$texturescrollangle\" \"180\"\n\t\"$texturescrollinput\" \"25\"\n\t\"$devidebyonehundred\" \"100\"\n\t\"Proxies\"\n\t{\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$scaleinput\"\n\t\t\t\"srcVar2\" \"$devidebyonehundred\"\n\t\t\t\"resultVar\" \"$scalevar[0]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$scaleinput\"\n\t\t\t\"srcVar2\" \"$devidebyonehundred\"\n\t\t\t\"resultVar\" \"$scalevar[1]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$texturescrollinput\"\n\t\t\t\"srcVar2\" \"$devidebyonehundred\"\n\t\t\t\"resultVar\" \"$texturescrollrate\"\n\t\t}\n\t\t\"TextureScroll\"\n\t\t{\n\t\t\t\"textureScrollVar\" \"$translate\"\n\t\t\t\"textureScrollRate\" \"$texturescrollrate\"\n\t\t\t\"textureScrollAngle\" \"$texturescrollangle\"\n\t\t}\n\t\t\"TextureTransform\"\n\t\t{\n\t\t\t\"translateVar\" \"$translate\"\n\t\t\t\"scalevar\" \"$scalevar\"\n\t\t\t\"rotateVar\" \"$angle\"\n\t\t\t\"centerVar\" \"$centervar\"\n\t\t\t\"resultVar\" \"$basetexturetransform\"\n\t\t}\n\t}\n}");
     end
 
-    TryReadThenWrite(sPath .. "glow.vmt", "\"VertexLitGeneric\" {\n\t\"$additive\" \"1\"\n\t\"$envmap\" \"models/effects/cube_white\"\n\t\"$envmaptint\" \"[1.0 1.0 1.0]\"\n\t\"$envmaptintr\" \"255\"\n\t\"$envmaptintr\" \"255\"\n\t\"$envmaptintg\" \"0\"\n\t\"$envmaptintb\" \"0\"\n\t\"$envmaptintmod\" \"255\"\n\t\"$envmapfresnel\" \"1\"\n\t\"$envmapfresnelminmaxexp\" \"[0 1 2]\"\n\t\"$envmapfresnelbrightnessdiv\" \"500\"\n\t\"$envmapfresnelbrightness\" \"1\"\n\t\"$envmapfresnelfilldiv\" \"4\"\n\t\"$envmapfresnelfill\" \"1\"\n\t\"$selfillum\" \"1\"\n\t\"$wireframe\" \"0\"\n\t\"$ignorez\" \"0\"\n\t\"Proxies\"\n\t{\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmaptintr\"\n\t\t\t\"srcVar2\" \"$envmaptintmod\"\n\t\t\t\"resultVar\" \"$envmaptint[0]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmaptintg\"\n\t\t\t\"srcVar2\" \"$envmaptintmod\"\n\t\t\t\"resultVar\" \"$envmaptint[1]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmaptintb\"\n\t\t\t\"srcVar2\" \"$envmaptintmod\"\n\t\t\t\"resultVar\" \"$envmaptint[2]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmaptintb\"\n\t\t\t\"srcVar2\" \"$envmaptintmod\"\n\t\t\t\"resultVar\" \"$envmaptint[2]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmapfresnelbrightness\"\n\t\t\t\"srcVar2\" \"$envmapfresnelbrightnessdiv\"\n\t\t\t\"resultVar\" \"$envmapfresnelminmaxexp[1]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmapfresnelfill\"\n\t\t\t\"srcVar2\" \"$envmapfresnelfilldiv\"\n\t\t\t\"resultVar\" \"$envmapfresnelminmaxexp[2]\"\n\t\t}\n\t}\n}");
+    TryReadThenWrite(sPath .. "glow.vmt", "\"VertexLitGeneric\" {\n\t\"$additive\" \"1\"\n\t\"$envmap\" \"models/effects/cube_white\"\n\t\"$envmaptint\" \"[1.0 1.0 1.0]\"\n\t\"$envmaptintr\" \"255\"\n\t\"$envmaptintg\" \"0\"\n\t\"$envmaptintb\" \"0\"\n\t\"$envmaptintmod\" \"255\"\n\t\"$envmapfresnel\" \"1\"\n\t\"$envmapfresnelminmaxexp\" \"[0 1 2]\"\n\t\"$envmapfresnelbrightnessdiv\" \"500\"\n\t\"$envmapfresnelbrightness\" \"1\"\n\t\"$envmapfresnelfilldiv\" \"4\"\n\t\"$envmapfresnelfill\" \"1\"\n\t\"$selfillum\" \"1\"\n\t\"$wireframe\" \"0\"\n\t\"$ignorez\" \"0\"\n\t\"Proxies\"\n\t{\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmaptintr\"\n\t\t\t\"srcVar2\" \"$envmaptintmod\"\n\t\t\t\"resultVar\" \"$envmaptint[0]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmaptintg\"\n\t\t\t\"srcVar2\" \"$envmaptintmod\"\n\t\t\t\"resultVar\" \"$envmaptint[1]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmaptintb\"\n\t\t\t\"srcVar2\" \"$envmaptintmod\"\n\t\t\t\"resultVar\" \"$envmaptint[2]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmapfresnelbrightness\"\n\t\t\t\"srcVar2\" \"$envmapfresnelbrightnessdiv\"\n\t\t\t\"resultVar\" \"$envmapfresnelminmaxexp[1]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$envmapfresnelfill\"\n\t\t\t\"srcVar2\" \"$envmapfresnelfilldiv\"\n\t\t\t\"resultVar\" \"$envmapfresnelminmaxexp[2]\"\n\t\t}\n\t}\n}");
     TryReadThenWrite(sPath .. "modulate.vmt", "\"Modulate\" {\n\t\"$basetexture\" \"VGUI/white_additive\"\n\t\"$color\" \"[1 1 1]\"\n\t\"$nofog\" \"1\"\n\t\"$mod2x\" \"1\"\n\t\"$phonginput\" \"0\"\n\t\"$pearlescentinput\" \"0\"\n\t\"$alpha\" \"1\"\n\t\"$rimlightinput\" \"0\"\n}");
     TryReadThenWrite(sPath .. "unlitgeneric.vmt", "\"UnlitGeneric\" {\n\t\"$basetexture\" \"VGUI/white_additive\"\n\t\"$color\" \"[1 1 1]\"\n\t\"$nofog\" \"1\"\n\t\"$envmap\" \"env_cubemap\"\n\t\"$basemapalphaphongmask\" \"1\"\n\t\"$phonginput\" \"0\"\n\t\"$phongr\" \"0\"\n\t\"$phongg\" \"0\"\n\t\"$phongb\" \"0\"\n\t\"$phonga\" \"0\"\n\t\"$pearlescentinput\" \"0\"\n\t\"$twofivefivesquared\" \"65025\"\n\t\"$alpha\" \"1\"\n\t\"$selfillum\" \"1\"\n\t\"$envmaptint\" \"[0 0 0]\"\n\t\"$rimlightinput\" \"0\"\n\t\"Proxies\"\n\t{\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phonga\"\n\t\t\t\"srcVar2\" \"$twofivefivesquared\"\n\t\t\t\"resultVar\" \"$phonginput\"\n\t\t}\n\t\t\"Multiply\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongr\"\n\t\t\t\"srcVar2\" \"$phonginput\"\n\t\t\t\"resultVar\" \"$envmaptint[0]\"\n\t\t}\n\t\t\"Multiply\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongg\"\n\t\t\t\"srcVar2\" \"$phonginput\"\n\t\t\t\"resultVar\" \"$envmaptint[1]\"\n\t\t}\n\t\t\"Multiply\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongb\"\n\t\t\t\"srcVar2\" \"$phonginput\"\n\t\t\t\"resultVar\" \"$envmaptint[2]\"\n\t\t}\n\t}\n}");
     TryReadThenWrite(sPath .. "vertexlit.vmt", "\"VertexLitGeneric\" {\n\t\"$basetexture\" \"VGUI/white_additive\"\n\t\"$color\" \"[1 1 1]\"\n\t\"$nofog\" \"1\"\n\t\"$envmap\" \"env_cubemap\"\n\t\"$phong\" \"1\"\n\t\"$basemapalphaphongmask\" \"1\"\n\t\"$phongboost\" \"0\"\n\t\"$phonginput\" \"0\"\n\t\"$phongr\" \"0\"\n\t\"$phongg\" \"0\"\n\t\"$phongb\" \"0\"\n\t\"$phonga\" \"0\"\n\t\"$rimlight\" \"1\"\n\t\"$rimlightexponent\" \"9999999\"\n\t\"$rimlightboost\" \"0\"\n\t\"$pearlescent\" \"0\"\n\t\"$pearlescentinput\" \"0\"\n\t\"$ten\" \"10\"\n\t\"$twofivefive\" \"255\"\n\t\"$twofivefivesquared\" \"65025\"\n\t\"$alpha\" \"1\"\n\t\"$selfillum\" \"1\"\n\t\"$envmaptint\" \"[0 0 0]\"\n\t\"$phongtint\" \"[1 1 1]\"\n\t\"$rimlightinput\" \"0\"\n\t\"Proxies\"\n\t{\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$pearlescentinput\"\n\t\t\t\"srcVar2\" \"$ten\"\n\t\t\t\"resultVar\" \"$pearlescent\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$rimlightinput\"\n\t\t\t\"srcVar2\" \"$ten\"\n\t\t\t\"resultVar\" \"$rimlightboost\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phonga\"\n\t\t\t\"srcVar2\" \"$twofivefivesquared\"\n\t\t\t\"resultVar\" \"$phonginput\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phonga\"\n\t\t\t\"srcVar2\" \"$ten\"\n\t\t\t\"resultVar\" \"$phongboost\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongr\"\n\t\t\t\"srcVar2\" \"$twofivefive\"\n\t\t\t\"resultVar\" \"$phongtint[0]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongg\"\n\t\t\t\"srcVar2\" \"$twofivefive\"\n\t\t\t\"resultVar\" \"$phongtint[1]\"\n\t\t}\n\t\t\"Divide\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongb\"\n\t\t\t\"srcVar2\" \"$twofivefive\"\n\t\t\t\"resultVar\" \"$phongtint[2]\"\n\t\t}\n\t\t\"Multiply\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongr\"\n\t\t\t\"srcVar2\" \"$phonginput\"\n\t\t\t\"resultVar\" \"$envmaptint[0]\"\n\t\t}\n\t\t\"Multiply\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongg\"\n\t\t\t\"srcVar2\" \"$phonginput\"\n\t\t\t\"resultVar\" \"$envmaptint[1]\"\n\t\t}\n\t\t\"Multiply\"\n\t\t{\n\t\t\t\"srcVar1\" \"$phongb\"\n\t\t\t\"srcVar2\" \"$phonginput\"\n\t\t\t\"resultVar\" \"$envmaptint[2]\"\n\t\t}\n\t}\n}");
@@ -588,15 +588,15 @@ local function GenerateChamGroup(sConfigName, sMaterialPrefix, iGroup, bIsThirdP
 
     function stConfig:Load()
         self.m_aMainMaterials = {
-            [0] = materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_modulate.vmt", true);
-            [1] = materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_vertexlit.vmt", true);
-            [2] = materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_unlitgeneric.vmt", true);
+            [0] = materialsystem.find_material(self.m_sGroup .. "_modulate.vmt", true);
+            [1] = materialsystem.find_material(self.m_sGroup .. "_vertexlit.vmt", true);
+            [2] = materialsystem.find_material(self.m_sGroup .. "_unlitgeneric.vmt", true);
         };
 
         self.m_aRawMainMaterials = {
-            [0] = IMaterialSystem:FindMaterial("custom_chams/" .. self.m_sGroup .. "_modulate.vmt");
-            [1] = IMaterialSystem:FindMaterial("custom_chams/" .. self.m_sGroup .. "_vertexlit.vmt");
-            [2] = IMaterialSystem:FindMaterial("custom_chams/" .. self.m_sGroup .. "_unlitgeneric.vmt");
+            [0] = IMaterialSystem:FindMaterial(self.m_sGroup .. "_modulate.vmt");
+            [1] = IMaterialSystem:FindMaterial(self.m_sGroup .. "_vertexlit.vmt");
+            [2] = IMaterialSystem:FindMaterial(self.m_sGroup .. "_unlitgeneric.vmt");
         };
     
         for k, v in pairs(self.m_aRawMainMaterials) do
@@ -604,13 +604,13 @@ local function GenerateChamGroup(sConfigName, sMaterialPrefix, iGroup, bIsThirdP
         end
     
         for i = 0, 4 do
-            self.m_aAnimatedMaterials[i] = materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_animated_" .. tostring(i) .. ".vmt", true);
-            self.m_aRawAnimatedMaterials[i] = IMaterialSystem:FindMaterial("custom_chams/" .. self.m_sGroup .. "_animated_" .. tostring(i) .. ".vmt");
+            self.m_aAnimatedMaterials[i] = materialsystem.find_material(self.m_sGroup .. "_animated_" .. tostring(i) .. ".vmt", true);
+            self.m_aRawAnimatedMaterials[i] = IMaterialSystem:FindMaterial(self.m_sGroup .. "_animated_" .. tostring(i) .. ".vmt");
             self.m_aRawAnimatedMaterials[i]:IncrementReferenceCount();
         end
     
-        self.m_materialGlow =  materialsystem.find_material("custom_chams/" .. self.m_sGroup .. "_glow.vmt", true);
-        self.m_pGlowMaterial = IMaterialSystem:FindMaterial("custom_chams/" .. self.m_sGroup .. "_glow.vmt");
+        self.m_materialGlow =  materialsystem.find_material(self.m_sGroup .. "_glow.vmt", true);
+        self.m_pGlowMaterial = IMaterialSystem:FindMaterial(self.m_sGroup .. "_glow.vmt");
         self.m_pGlowMaterial:IncrementReferenceCount();
     end
 
